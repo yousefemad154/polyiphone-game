@@ -1,7 +1,7 @@
 [preset.0]
 
-name="Client Windows"
-platform="Windows Desktop"
+name="iOS"
+platform="iOS"
 runnable=true
 dedicated_server=false
 custom_features="client,discord-rpc,beta"
