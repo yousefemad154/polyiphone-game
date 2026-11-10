@@ -455,4 +455,6 @@ limits/global_shader_variables/buffer_size=524288
 environment/defaults/default_clear_color=Color(0.15, 0.15, 0.15, 1)
 occlusion_culling/use_occlusion_culling=true
 mesh_lod/lod_change/threshold_pixels=0.0
+[autoload]
 PolyTouchControls="*res://Scripts/Mobile/PolyTouchControls.cs"
+
