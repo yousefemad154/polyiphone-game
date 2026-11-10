@@ -1,1 +1,45 @@
+name: Build polyiphone IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Godot 4 (.NET)
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.4.1
+          use-dotnet: true
+          include-templates: true
+
+      - name: Export iOS Xcode Project
+        run: |
+          mkdir -p build/ios
+          godot --headless --path Polytoria --export-release "iOS" ../build/ios/polyiphone.xcodeproj
+
+      - name: Build Unsigned IPA
+        run: |
+          cd build/ios
+          xcodebuild -project polyiphone.xcodeproj -scheme polyiphone -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO build
+          mkdir -p Payload
+          cp -r build/Release-iphoneos/polyiphone.app Payload/polyiphone.app
+          zip -r polyiphone.ipa Payload
+
+      - name: Upload polyiphone.ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: polyiphone-ipa
+          path: build/ios/polyiphone.ipa
 
