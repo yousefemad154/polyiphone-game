@@ -12,6 +12,9 @@ jobs:
           lfs: true
       - name: Checkout Repository
         uses: actions/checkout@v4
+      - name: Reset project.godot to Clean Original
+        run: |
+          python3 -c 'p="Polytoria/project.godot"; t=open(p).read(); open(p,"w").write(t.split("[autoload]")[0].rstrip()+"\n")'
         with:
           lfs: true
           fetch-depth: 0
