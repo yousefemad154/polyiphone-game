@@ -14,6 +14,7 @@ jobs:
       - name: Clean project.godot and Verify iOS Preset
         run: |
           python3 -c '
+          import os
           p = "Polytoria/project.godot"
           with open(p, "r", encoding="utf-8", errors="ignore") as f:
               t = f.read()
@@ -21,10 +22,9 @@ jobs:
               t = t.split("[autoload]")[0]
           with open(p, "w", encoding="utf-8") as f:
               f.write(t.rstrip() + "\n")
-          '
-          if [ ! -f "Polytoria/export_presets.cfg" ]; then
-            cat << 'EOF' > Polytoria/export_presets.cfg
-          [preset.0]
+
+          ep = "Polytoria/export_presets.cfg"
+          preset_txt = """[preset.0]
           name="iOS"
           platform="iOS"
           runnable=true
@@ -45,8 +45,11 @@ jobs:
           application/short_version="1.0"
           application/version="1.0"
           application/targeted_device_family=2
-          EOF
-          fi
+          """
+          if not os.path.exists(ep):
+              with open(ep, "w", encoding="utf-8") as f:
+                  f.write("\n".join(line.strip() for line in preset_txt.splitlines()) + "\n")
+          '
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
