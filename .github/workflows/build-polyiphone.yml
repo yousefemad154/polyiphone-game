@@ -10,6 +10,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           lfs: true
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
 
       - name: Reset project.godot to Clean Original
         run: |
