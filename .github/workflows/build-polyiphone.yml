@@ -10,18 +10,43 @@ jobs:
         uses: actions/checkout@v4
         with:
           lfs: true
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      - name: Reset project.godot to Clean Original
-        run: |
-          python3 -c 'p="Polytoria/project.godot"; t=open(p).read(); open(p,"w").write(t.split("[autoload]")[0].rstrip()+"\n")'
-        with:
-          lfs: true
-          fetch-depth: 0
 
-      - name: Reset project.godot to Clean Original
+      - name: Clean project.godot and Verify iOS Preset
         run: |
-                    git checkout 6f1a1b5 -- Polytoria/project.godot || git checkout HEAD~14 -- Polytoria/project.godot
+          python3 -c '
+          p = "Polytoria/project.godot"
+          with open(p, "r", encoding="utf-8", errors="ignore") as f:
+              t = f.read()
+          if "[autoload]" in t:
+              t = t.split("[autoload]")[0]
+          with open(p, "w", encoding="utf-8") as f:
+              f.write(t.rstrip() + "\n")
+          '
+          if [ ! -f "Polytoria/export_presets.cfg" ]; then
+            cat << 'EOF' > Polytoria/export_presets.cfg
+          [preset.0]
+          name="iOS"
+          platform="iOS"
+          runnable=true
+          dedicated_server=false
+          custom_features=""
+          export_filter="all_resources"
+          include_filter=""
+          exclude_filter=""
+          export_path=""
+          encryption_include_filters=""
+          encryption_exclude_filters=""
+          encrypt_pck=false
+          encrypt_directory=false
+
+          [preset.0.options]
+          application/bundle_identifier="com.yousef.polyiphone"
+          application/signature="POLY"
+          application/short_version="1.0"
+          application/version="1.0"
+          application/targeted_device_family=2
+          EOF
+          fi
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -64,6 +89,10 @@ jobs:
           SCHEME=$(basename "$PROJ_FILE" .xcodeproj)
           xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           APP_PATH=$(find "$GITHUB_WORKSPACE/build/derived" -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: Xcode build succeeded but no .app bundle was found."
+            exit 1
+          fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/polyiphone.app
           zip -r "$GITHUB_WORKSPACE/polyiphone.ipa" Payload
