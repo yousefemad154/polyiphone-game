@@ -1,4 +1,3 @@
-name: Build polyiphone IPA
 
 on: [workflow_dispatch]
 
@@ -43,5 +42,6 @@ jobs:
         with:
           name: polyiphone-ipa
           path: build/ios/polyiphone.ipa
+
 
 
