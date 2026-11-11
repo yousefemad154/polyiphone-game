@@ -13,43 +13,10 @@ jobs:
 
       - name: Clean project.godot and Verify iOS Preset
         run: |
-          python3 -c '
-          import os
-          p = "Polytoria/project.godot"
-          with open(p, "r", encoding="utf-8", errors="ignore") as f:
-              t = f.read()
-          if "[autoload]" in t:
-              t = t.split("[autoload]")[0]
-          with open(p, "w", encoding="utf-8") as f:
-              f.write(t.rstrip() + "\n")
-
-          ep = "Polytoria/export_presets.cfg"
-          preset_txt = """[preset.0]
-          name="iOS"
-          platform="iOS"
-          runnable=true
-          dedicated_server=false
-          custom_features=""
-          export_filter="all_resources"
-          include_filter=""
-          exclude_filter=""
-          export_path=""
-          encryption_include_filters=""
-          encryption_exclude_filters=""
-          encrypt_pck=false
-          encrypt_directory=false
-
-          [preset.0.options]
-          application/bundle_identifier="com.yousef.polyiphone"
-          application/signature="POLY"
-          application/short_version="1.0"
-          application/version="1.0"
-          application/targeted_device_family=2
-          """
-          if not os.path.exists(ep):
-              with open(ep, "w", encoding="utf-8") as f:
-                  f.write("\n".join(line.strip() for line in preset_txt.splitlines()) + "\n")
-          '
+          sed -i '' '/\[autoload\]/,$d' Polytoria/project.godot
+          if [ ! -f "Polytoria/export_presets.cfg" ]; then
+            printf '[preset.0]\nname="iOS"\nplatform="iOS"\nrunnable=true\nexport_filter="all_resources"\n\n[preset.0.options]\napplication/bundle_identifier="com.yousef.polyiphone"\napplication/signature="POLY"\napplication/short_version="1.0"\napplication/version="1.0"\napplication/targeted_device_family=2\n' > Polytoria/export_presets.cfg
+          fi
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
