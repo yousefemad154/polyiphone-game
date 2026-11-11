@@ -1,4 +1,5 @@
-name: build polyiphone ipa
+name: Build polyiphone IPA
+
 on: [workflow_dispatch]
 
 jobs:
@@ -22,26 +23,31 @@ jobs:
           use-dotnet: true
           include-templates: true
 
+      - name: Restore C# Dependencies
+        run: |
+          CSPROJ=$(find Polytoria -name "*.csproj" | head -n 1)
+          if [ -n "$CSPROJ" ]; then
+            dotnet restore "$CSPROJ"
+          fi
+
       - name: Export iOS Xcode Project
         run: |
-          mkdir -p build/ios
-          godot --headless --path Polytoria --export-release "iOS" ../build/ios/polyiphone.xcodeproj
+          mkdir -p "$GITHUB_WORKSPACE/build/ios"
+          godot --headless --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
 
       - name: Build Unsigned IPA
         run: |
-          cd build/ios
-          PROJ=$(ls -d *.xcodeproj | head -n 1)
-          SCHEME="${PROJ%.xcodeproj}"
-          xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO build
+          cd "$GITHUB_WORKSPACE/build/ios"
+          PROJ_FILE=$(ls -d *.xcodeproj | head -n 1)
+          SCHEME="${PROJ_FILE%.xcodeproj}"
+          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          APP_PATH=$(find "$GITHUB_WORKSPACE/build/derived" -name "*.app" | head -n 1)
           mkdir -p Payload
-          cp -r "build/Release-iphoneos/${SCHEME}.app" Payload/polyiphone.app
-          zip -r polyiphone.ipa Payload
+          cp -r "$APP_PATH" Payload/polyiphone.app
+          zip -r "$GITHUB_WORKSPACE/polyiphone.ipa" Payload
 
       - name: Upload polyiphone.ipa
         uses: actions/upload-artifact@v4
         with:
           name: polyiphone-ipa
-          path: build/ios/polyiphone.ipa
-
-
-
+          path: polyiphone.ipa
