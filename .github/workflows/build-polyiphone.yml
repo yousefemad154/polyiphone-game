@@ -1,7 +1,6 @@
 name: Build polyiphone IPA
 
-on:
-  workflow_dispatch:
+on: [workflow_dispatch]
 
 jobs:
   build-ios:
@@ -32,9 +31,11 @@ jobs:
       - name: Build Unsigned IPA
         run: |
           cd build/ios
-          xcodebuild -project polyiphone.xcodeproj -scheme polyiphone -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO build
+          PROJ=$(ls -d *.xcodeproj | head -n 1)
+          SCHEME="${PROJ%.xcodeproj}"
+          xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO build
           mkdir -p Payload
-          cp -r build/Release-iphoneos/polyiphone.app Payload/polyiphone.app
+          cp -r "build/Release-iphoneos/${SCHEME}.app" Payload/polyiphone.app
           zip -r polyiphone.ipa Payload
 
       - name: Upload polyiphone.ipa
@@ -42,4 +43,5 @@ jobs:
         with:
           name: polyiphone-ipa
           path: build/ios/polyiphone.ipa
+
 
