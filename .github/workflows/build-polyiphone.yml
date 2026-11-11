@@ -13,7 +13,7 @@ jobs:
 
       - name: Reset project.godot to Clean Original
         run: |
-          curl -sL https://githubusercontent.com -o Polytoria/project.godot
+                    git checkout 6f1a1b5 -- Polytoria/project.godot || git checkout HEAD~14 -- Polytoria/project.godot
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
