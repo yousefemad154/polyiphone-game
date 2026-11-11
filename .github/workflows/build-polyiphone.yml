@@ -1,4 +1,4 @@
-
+name: build polyiphone ipa
 on: [workflow_dispatch]
 
 jobs:
