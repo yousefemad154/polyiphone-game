@@ -23,23 +23,33 @@ jobs:
           use-dotnet: true
           include-templates: true
 
-      - name: Restore C# Dependencies
+      - name: Restore and Build C# Assembly
         run: |
           CSPROJ=$(find Polytoria -name "*.csproj" | head -n 1)
           if [ -n "$CSPROJ" ]; then
             dotnet restore "$CSPROJ"
+            dotnet build "$CSPROJ" -c Release
           fi
 
-      - name: Export iOS Xcode Project
+      - name: Export iOS Project
         run: |
           mkdir -p "$GITHUB_WORKSPACE/build/ios"
-          godot --headless --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
+          godot --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.ipa" || true
+          ls -la "$GITHUB_WORKSPACE/build/ios"
 
       - name: Build Unsigned IPA
         run: |
           cd "$GITHUB_WORKSPACE/build/ios"
-          PROJ_FILE=$(ls -d *.xcodeproj | head -n 1)
-          SCHEME="${PROJ_FILE%.xcodeproj}"
+          if [ -f "polyiphone.ipa" ]; then
+            cp polyiphone.ipa "$GITHUB_WORKSPACE/polyiphone.ipa"
+            exit 0
+          fi
+          PROJ_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
+          if [ -z "$PROJ_FILE" ]; then
+            echo "ERROR: Godot did not generate an .xcodeproj or .ipa. Check the Export iOS Project log above."
+            exit 1
+          fi
+          SCHEME=$(basename "$PROJ_FILE" .xcodeproj)
           xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           APP_PATH=$(find "$GITHUB_WORKSPACE/build/derived" -name "*.app" | head -n 1)
           mkdir -p Payload
