@@ -11,6 +11,10 @@ jobs:
         with:
           lfs: true
 
+      - name: Reset project.godot to Clean Original
+        run: |
+          curl -sL https://githubusercontent.com -o Polytoria/project.godot
+
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
