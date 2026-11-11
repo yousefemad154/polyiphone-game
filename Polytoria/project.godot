@@ -42,8 +42,11 @@ boot_splash/stretch_mode=0
 boot_splash/use_filter=false
 boot_splash/image="uid://ngfx6aps7f0g"
 config/icon="uid://bvolad7rptrsm"
+config/icon="uid://bvolad7rptrsm"
 
-PolyTouchControls="*res://Scripts/Mobile/PolyTouchControls.cs
+[autoload]
+
+Globals="*res://scripts/shared/Globals.cs"
 
 Globals="*res://scripts/shared/Globals.cs"
 AssetLoader="*uid://rdicloyxgx18"
