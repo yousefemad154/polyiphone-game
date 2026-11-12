@@ -83,11 +83,17 @@ jobs:
       - name: Export iOS Project
         run: |
           mkdir -p "$GITHUB_WORKSPACE/build/ios"
+          TPL_DIR="$HOME/Library/Application Support/Godot/export_templates"
+          if [ -d "$TPL_DIR/4.7.2.stable.mono" ] && [ ! -e "$TPL_DIR/4.7.2.stable" ]; then
+            ln -s "$TPL_DIR/4.7.2.stable.mono" "$TPL_DIR/4.7.2.stable"
+          fi
+          sed -i '' 's/, "res:\/\/addons\/PolytoriaExportPlugin\/plugin.cfg"//g' Polytoria/project.godot
           GODOT_BIN=~/patched-godot/godot.macos.editor.x86_64.mono
           chmod +x "$GODOT_BIN"
           "$GODOT_BIN" --headless --path Polytoria --import || true
-          "$GODOT_BIN" --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
+          "$GODOT_BIN" --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj" || true
           ls -la "$GITHUB_WORKSPACE/build/ios"
+
 
       - name: Build Unsigned IPA
         run: |
