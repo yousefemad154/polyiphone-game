@@ -41,7 +41,8 @@ jobs:
       - name: Export iOS Project
         run: |
           mkdir -p "$GITHUB_WORKSPACE/build/ios"
-          godot --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.ipa" || true
+          godot --headless --path Polytoria --import || true
+          godot --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
           ls -la "$GITHUB_WORKSPACE/build/ios"
 
       - name: Build Unsigned IPA
