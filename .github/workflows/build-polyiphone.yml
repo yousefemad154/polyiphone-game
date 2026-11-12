@@ -94,7 +94,6 @@ jobs:
           "$GODOT_BIN" --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj" || true
           ls -la "$GITHUB_WORKSPACE/build/ios"
 
-
       - name: Build Unsigned IPA
         run: |
           cd "$GITHUB_WORKSPACE/build/ios"
@@ -104,7 +103,12 @@ jobs:
             exit 1
           fi
           SCHEME=$(basename "$PROJ_FILE" .xcodeproj)
-          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          set -o pipefail
+          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" build 2>&1 | tee "$GITHUB_WORKSPACE/xcode.log" || {
+            echo "=== XCODE ERRORS ==="
+            grep -E "error:|fatal error:" "$GITHUB_WORKSPACE/xcode.log" | tail -n 15
+            exit 1
+          }
           APP_PATH=$(find "$GITHUB_WORKSPACE/build/derived" -name "*.app" | head -n 1)
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/polyiphone.app
