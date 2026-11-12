@@ -43,11 +43,19 @@ jobs:
           path: ~/patched-godot
           key: godot-4.7.2-ios-csharp-macos-v2
 
+      - name: Checkout Godot 4.7.2 Source
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: godotengine/godot
+          ref: 4.7.2-stable
+          path: godot-src
+
       - name: Build Patched Godot 4.7.2 Editor (Bypass C# iOS Block)
         if: steps.cache-godot.outputs.cache-hit != 'true'
         run: |
           brew install scons
-          git clone --depth 1 --branch 4.7.2-stable https://github.com /tmp/godot-src
+          mv godot-src /tmp/godot-src
           python3 -c '
           import glob
           for path in glob.glob("/tmp/godot-src/platform/**/export/*.cpp", recursive=True):
