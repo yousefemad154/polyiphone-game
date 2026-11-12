@@ -34,15 +34,17 @@ jobs:
         run: |
           CSPROJ=$(find Polytoria -name "*.csproj" | head -n 1)
           if [ -n "$CSPROJ" ]; then
-            dotnet restore "$CSPROJ"
-            dotnet build "$CSPROJ" -c Release
+            dotnet restore "$CSPROJ" -r ios-arm64
+            dotnet publish "$CSPROJ" -c ExportRelease -r ios-arm64
           fi
 
       - name: Export iOS Project
         run: |
           mkdir -p "$GITHUB_WORKSPACE/build/ios"
           godot --headless --path Polytoria --import || true
-           godot --headless --verbose --allow-experimental-export --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
+          godot --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
+          ls -la "$GITHUB_WORKSPACE/build/ios"
+
 
 
       - name: Build Unsigned IPA
