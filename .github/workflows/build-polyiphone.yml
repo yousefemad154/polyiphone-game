@@ -41,7 +41,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/patched-godot
-          key: godot-4.7.2-ios-csharp-macos-v2
+          key: godot-4.7.2-ios-csharp-macos-v3
 
       - name: Checkout Godot 4.7.2 Source
         if: steps.cache-godot.outputs.cache-hit != 'true'
@@ -66,7 +66,7 @@ jobs:
                   print("Patched:", path)
           '
           cd /tmp/godot-src
-          scons platform=macos arch=x86_64 target=editor module_mono_enabled=yes -j$(sysctl -n hw.ncpu)
+          scons platform=macos arch=x86_64 target=editor module_mono_enabled=yes vulkan=no angle=no accesskit=no -j$(sysctl -n hw.ncpu)
           ./bin/godot.macos.editor.x86_64.mono --headless --generate-mono-glue modules/mono/glue
           python3 modules/mono/build_scripts/build_assemblies.py --godot-output-dir=./bin --godot-platform=macos
           mkdir -p ~/patched-godot
