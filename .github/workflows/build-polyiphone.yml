@@ -80,20 +80,6 @@ jobs:
             dotnet build "$CSPROJ" -c Release
           fi
 
-      - name: Export iOS Project
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/build/ios"
-          TPL_DIR="$HOME/Library/Application Support/Godot/export_templates"
-          if [ -d "$TPL_DIR/4.7.2.stable.mono" ] && [ ! -e "$TPL_DIR/4.7.2.stable" ]; then
-            ln -s "$TPL_DIR/4.7.2.stable.mono" "$TPL_DIR/4.7.2.stable"
-          fi
-          sed -i '' 's/, "res:\/\/addons\/PolytoriaExportPlugin\/plugin.cfg"//g' Polytoria/project.godot
-          GODOT_BIN=~/patched-godot/godot.macos.editor.x86_64.mono
-          chmod +x "$GODOT_BIN"
-          "$GODOT_BIN" --headless --path Polytoria --import || true
-          "$GODOT_BIN" --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj" || true
-          ls -la "$GITHUB_WORKSPACE/build/ios"
-
       - name: Build Unsigned IPA
         run: |
           cd "$GITHUB_WORKSPACE/build/ios"
@@ -104,15 +90,17 @@ jobs:
           fi
           SCHEME=$(basename "$PROJ_FILE" .xcodeproj)
           set -o pipefail
-          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" build 2>&1 | tee "$GITHUB_WORKSPACE/xcode.log" || {
-            echo "=== XCODE ERRORS ==="
-            grep -E "error:|fatal error:" "$GITHUB_WORKSPACE/xcode.log" | tail -n 15
+          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" ENABLE_BITCODE=NO OTHER_LDFLAGS='$(inherited) -ld_classic' build 2>&1 | tee "$GITHUB_WORKSPACE/xcode.log" || {
+            echo "=== XCODE LINKER DETAILS ==="
+            grep -B 15 -A 2 "linker command failed" "$GITHUB_WORKSPACE/xcode.log" | tail -n 20
+            grep -E "error:|fatal error:|Undefined symbols|library not found" "$GITHUB_WORKSPACE/xcode.log" | tail -n 15
             exit 1
           }
           APP_PATH=$(find "$GITHUB_WORKSPACE/build/derived" -name "*.app" | head -n 1)
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/polyiphone.app
           zip -r "$GITHUB_WORKSPACE/polyiphone.ipa" Payload
+
 
       - name: Upload polyiphone.ipa
         uses: actions/upload-artifact@v4
