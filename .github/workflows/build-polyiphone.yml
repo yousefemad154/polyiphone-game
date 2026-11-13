@@ -24,10 +24,10 @@ jobs:
             fi
           fi
 
-      - name: Setup .NET 8
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Setup Godot 4 (.NET Templates & Glue)
         uses: chickensoft-games/setup-godot@v2
@@ -107,16 +107,83 @@ jobs:
           fi
           cat << 'EOF' > ios26_stubs.m
           #import <Foundation/Foundation.h>
+          #import <UIKit/UIKit.h>
+          #import <WebKit/WebKit.h>
+          #import <AuthenticationServices/AuthenticationServices.h>
+
           __attribute__((weak)) NSString * const CADynamicRangeAutomatic = @"automatic";
           __attribute__((weak)) NSString * const CADynamicRangeConstrainedHigh = @"constrainedHigh";
           __attribute__((weak)) NSString * const CADynamicRangeHigh = @"high";
           __attribute__((weak)) NSString * const CADynamicRangeStandard = @"standard";
           __attribute__((weak)) NSErrorDomain const MTLTensorDomain = @"MTLTensorDomain";
+
+          static NSString *gCapturedSessionToken = nil;
+          static ASWebAuthenticationSession *gAuthSession = nil;
+
+          @interface PolyAuthContextProvider : NSObject <ASWebAuthenticationPresentationContextProviding>
+          @end
+
+          @implementation PolyAuthContextProvider
+          - (ASPresentationAnchor)presentationAnchorForWebAuthenticationSession:(ASWebAuthenticationSession *)session {
+              for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                  if ([scene isKindOfClass:[UIWindowScene class]]) {
+                      for (UIWindow *w in ((UIWindowScene *)scene).windows) {
+                          if (w.isKeyWindow) return w;
+                      }
+                  }
+              }
+              return [[UIWindow alloc] init];
+          }
+          @end
+
+          static PolyAuthContextProvider *gAuthProvider = nil;
+
+          static void ExtractPolytoriaSessionCookie(void) {
+              WKHTTPCookieStore *store = [[WKWebsiteDataStore defaultDataStore] httpCookieStore];
+              [store getAllCookies:^(NSArray<NSHTTPCookie *> *cookies) {
+                  for (NSHTTPCookie *cookie in cookies) {
+                      if ([[cookie.domain lowercaseString] containsString:@"polytoria.com"] &&
+                          [[cookie.name lowercaseString] containsString:@"session"]) {
+                          gCapturedSessionToken = [cookie.value copy];
+                          break;
+                      }
+                  }
+              }];
+          }
+
+          extern "C" void poly_start_signin_with_polytoria(void) {
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  NSURL *loginURL = [NSURL URLWithString:@"https://polytoria.com"];
+                  gAuthSession = [[ASWebAuthenticationSession alloc] initWithURL:loginURL callbackURLScheme:@"polyiphone" completionHandler:^(NSURL * _Nullable callbackURL, NSError * _Nullable error) {
+                      if (callbackURL && [callbackURL.absoluteString containsString:@"token="]) {
+                          NSURLComponents *comps = [NSURLComponents componentsWithURL:callbackURL resolvingAgainstBaseURL:NO];
+                          for (NSURLQueryItem *item in comps.queryItems) {
+                              if ([item.name isEqualToString:@"token"] && item.value.length > 0) {
+                                  gCapturedSessionToken = [item.value copy];
+                              }
+                          }
+                      }
+                      ExtractPolytoriaSessionCookie();
+                  }];
+                  gAuthProvider = [[PolyAuthContextProvider alloc] init];
+                  gAuthSession.presentationContextProvider = gAuthProvider;
+                  gAuthSession.prefersEphemeralWebBrowserSession = NO;
+                  [gAuthSession start];
+              });
+          }
+
+          extern "C" const char* poly_pop_captured_session(void) {
+              if (!gCapturedSessionToken) return "";
+              const char *utf8 = [gCapturedSessionToken UTF8String];
+              char *copy = strdup(utf8);
+              gCapturedSessionToken = nil;
+              return copy;
+          }
           EOF
-          xcrun -sdk iphoneos clang -c ios26_stubs.m -arch arm64 -fobjc-arc -o ios26_stubs.o
+          xcrun -sdk iphoneos clang++ -x objective-c++ -c ios26_stubs.m -arch arm64 -fobjc-arc -o ios26_stubs.o
           SCHEME=$(basename "$PROJ_FILE" .xcodeproj)
           set -o pipefail
-          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" ENABLE_BITCODE=NO OTHER_LDFLAGS="\$(inherited) -ld_classic $GITHUB_WORKSPACE/build/ios/ios26_stubs.o" build 2>&1 | tee "$GITHUB_WORKSPACE/xcode.log" || {
+          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" ENABLE_BITCODE=NO OTHER_LDFLAGS="\$(inherited) -ld_classic -framework WebKit -framework AuthenticationServices $GITHUB_WORKSPACE/build/ios/ios26_stubs.o" build 2>&1 | tee "$GITHUB_WORKSPACE/xcode.log" || {
             echo "=== XCODE LINKER DETAILS ==="
             grep -B 15 -A 2 "linker command failed" "$GITHUB_WORKSPACE/xcode.log" | tail -n 20
             grep -E "error:|fatal error:|Undefined symbols|library not found" "$GITHUB_WORKSPACE/xcode.log" | tail -n 15
@@ -132,10 +199,12 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.yousef.polyiphone" Payload/polyiphone.app/Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" Payload/polyiphone.app/Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string polytoria" Payload/polyiphone.app/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:1 string polyiphone" Payload/polyiphone.app/Info.plist || true
           zip -r "$GITHUB_WORKSPACE/polyiphone.ipa" Payload
 
-      - name: Upload polyiphone.ipa
-        uses: actions/upload-artifact@v4
-        with:
-          name: polyiphone-ipa
+
+          - name: Upload polyiphone.ipa
+           uses: actions/upload-artifact@v4
+           with:
+           name: polyiphone-ipa
           path: polyiphone.ipa
