@@ -88,6 +88,8 @@ jobs:
             ln -s "$TPL_DIR/4.7.2.stable.mono" "$TPL_DIR/4.7.2.stable"
           fi
           sed -i '' 's/, "res:\/\/addons\/PolytoriaExportPlugin\/plugin.cfg"//g' Polytoria/project.godot
+          sed -i '' 's/config\/name="Polytoria"/config\/name="polyiphone"/g' Polytoria/project.godot
+          printf '\n[rendering]\nrenderer/rendering_method="mobile"\nrenderer/rendering_method.mobile="mobile"\nanti_aliasing/quality/msaa_3d=0\nlights_and_shadows/directional_shadow/size=1024\n' >> Polytoria/project.godot
           GODOT_BIN=~/patched-godot/godot.macos.editor.x86_64.mono
           chmod +x "$GODOT_BIN"
           "$GODOT_BIN" --headless --path Polytoria --import || true
@@ -123,8 +125,14 @@ jobs:
           APP_PATH=$(find "$GITHUB_WORKSPACE/build/derived" -name "*.app" | head -n 1)
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/polyiphone.app
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName polyiphone" Payload/polyiphone.app/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName polyiphone" Payload/polyiphone.app/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" Payload/polyiphone.app/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" Payload/polyiphone.app/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.yousef.polyiphone" Payload/polyiphone.app/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" Payload/polyiphone.app/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string polytoria" Payload/polyiphone.app/Info.plist || true
           zip -r "$GITHUB_WORKSPACE/polyiphone.ipa" Payload
-
 
       - name: Upload polyiphone.ipa
         uses: actions/upload-artifact@v4
