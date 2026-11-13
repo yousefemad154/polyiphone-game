@@ -76,8 +76,19 @@ jobs:
         run: |
           CSPROJ=$(find Polytoria -name "*.csproj" | head -n 1)
           if [ -n "$CSPROJ" ]; then
+            python3 -c '
+          import sys
+          path = sys.argv[1]
+          txt = open(path, encoding="utf-8").read()
+          if "ALLOW_SELFHOST" not in txt:
+              txt = txt.replace("</PropertyGroup>", "  <DefineConstants>$(DefineConstants);ALLOW_SELFHOST</DefineConstants>\n  </PropertyGroup>", 1)
+              open(path, "w", encoding="utf-8").write(txt)
+              print("Enabled ALLOW_SELFHOST in", path)
+          ' "$CSPROJ"
             dotnet restore "$CSPROJ"
-            dotnet build "$CSPROJ" -c Release
+            dotnet build "$CSPROJ" -c Release -p:DefineConstants="ALLOW_SELFHOST"
+          fi
+
           fi
 
       - name: Export iOS Project
