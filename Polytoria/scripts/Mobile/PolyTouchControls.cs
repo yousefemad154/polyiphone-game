@@ -231,7 +231,6 @@ public partial class PolyTouchControls : CanvasLayer
 		authCol.AddThemeConstantOverride("separation", 8);
 		authCard.AddChild(authCol);
 
-		// Row 1: Self-Hosted Private Server Join (IP:Port)
 		HBoxContainer serverRow = new HBoxContainer();
 		serverRow.AddThemeConstantOverride("separation", 8);
 		authCol.AddChild(serverRow);
@@ -261,7 +260,6 @@ public partial class PolyTouchControls : CanvasLayer
 		joinSelfHostBtn.Pressed += OnJoinPrivateServerPressed;
 		serverRow.AddChild(joinSelfHostBtn);
 
-		// Row 2: Sign in with Polytoria + Token/Link
 		HBoxContainer tokenRow = new HBoxContainer();
 		tokenRow.AddThemeConstantOverride("separation", 8);
 		authCol.AddChild(tokenRow);
@@ -298,13 +296,13 @@ public partial class PolyTouchControls : CanvasLayer
 
 		Button saveTokenBtn = new Button();
 		saveTokenBtn.Text = "Save";
-saveTokenBtn.Pressed += OnSaveAndSignInPressed;
-tokenRow.AddChild(saveTokenBtn);
+		saveTokenBtn.Pressed += OnSaveAndSignInPressed;
+		tokenRow.AddChild(saveTokenBtn);
+
 Button joinLinkBtn = new Button();
 joinLinkBtn.Text = "Join Link";
 joinLinkBtn.Pressed += OnDirectJoinPressed;
 tokenRow.AddChild(joinLinkBtn);
-// Row 3: Sort & Pagination
 HBoxContainer filterRow = new HBoxContainer();
 filterRow.AddThemeConstantOverride("separation", 8);
 authCol.AddChild(filterRow);
@@ -384,7 +382,7 @@ if (entryMethod == null) return;
 ParameterInfo[] parameters = entryMethod.GetParameters();
 if (parameters.Length == 1)
 {
-Type paramType = parameters.ParameterType;
+Type paramType = parameters[0].ParameterType;
 Type dataType = Nullable.GetUnderlyingType(paramType) ?? paramType;
 object dataObj = Activator.CreateInstance(dataType);
 SetMemberValue(dataType, dataObj, "TestIsServer", false);
@@ -514,6 +512,8 @@ if (p.ContainsKey("creator") && p["creator"].VariantType == Variant.Type.Diction
 Godot.Collections.Dictionary c = p["creator"].AsGodotDictionary();
 if (c.ContainsKey("name")) creator = c["name"].ToString();
 }
+
+
 AddCard(name, "By " + creator + " • " + playing + " playing • " + visits + " visits", "Play", new Color(0.16f, 0.65f, 0.32f, 1.0f), () => OnPlacePlayPressed(id, name));
 }
 }
@@ -723,7 +723,7 @@ if (entryMethod == null) return;
 ParameterInfo[] parameters = entryMethod.GetParameters();
 if (parameters.Length == 1)
 {
-Type paramType = parameters.ParameterType;
+Type paramType = parameters[0].ParameterType;
 Type dataType = Nullable.GetUnderlyingType(paramType) ?? paramType;
 object dataObj = Activator.CreateInstance(dataType);
 SetMemberValue(dataType, dataObj, "Token", token);
@@ -885,3 +885,4 @@ DrawColoredPolygon(arrow, new Color(1f, 1f, 1f, 0.85f));
 }
 }
 }
+
