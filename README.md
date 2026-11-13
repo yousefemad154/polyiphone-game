@@ -36,6 +36,6 @@ Unless otherwise noted:
 <a href="https://github.com/Polytoria/polytoria-game/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=Polytoria/polytoria-game" />
 </a>
-NOTE: THIS IS FORKED AND EDITED FOR DOWNLOADING THE MOBILE VERSION WITHOUT WAITING, ALSO THIS IS ON BETA SO U NEED TO WAIT
+NOTE: THIS IS FORKED AND EDITED FOR DOWNLOADING THE MOBILE VERSION WITHOUT WAITING, ALSO THIS IS ON BETA SO YOU NEED TO WAIT
 
 Made with [contrib.rocks](https://contrib.rocks).
