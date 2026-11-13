@@ -65,7 +65,7 @@ jobs:
         run: |
           CSPROJ=$(find Polytoria -name "*.csproj" | head -n 1)
           if [ -n "$CSPROJ" ]; then
-            python3 -c 'import sys; p=sys.argv; t=open(p,encoding="utf-8").read(); open(p,"w",encoding="utf-8").write(t.replace("</PropertyGroup>","  <DefineConstants>$(DefineConstants);ALLOW_SELFHOST</DefineConstants>\n  </PropertyGroup>",1) if "ALLOW_SELFHOST" not in t else t)' "$CSPROJ"
+            python3 -c 'import sys; p=sys.argv[1]; t=open(p,encoding="utf-8").read(); open(p,"w",encoding="utf-8").write(t.replace("</PropertyGroup>","  <DefineConstants>$(DefineConstants);ALLOW_SELFHOST</DefineConstants>\n  </PropertyGroup>",1) if "ALLOW_SELFHOST" not in t else t)' "$CSPROJ"
             dotnet restore "$CSPROJ"
             dotnet build "$CSPROJ" -c Release -p:DefineConstants="ALLOW_SELFHOST"
           fi
@@ -193,8 +193,8 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string polytoria" Payload/polyiphone.app/Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:1 string polyiphone" Payload/polyiphone.app/Info.plist || true
           zip -r "$GITHUB_WORKSPACE/polyiphone.ipa" Payload
-           - name: Upload polyiphone.ipa
+          - name: Upload polyiphone.ipa
           uses: actions/upload-artifact@v4
           with:
-          name: polyiphone-ipa
-          path: polyiphone.ipa
+           name: polyiphone-ipa
+           path: polyiphone.ipa
