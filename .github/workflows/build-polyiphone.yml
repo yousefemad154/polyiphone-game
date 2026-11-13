@@ -89,115 +89,6 @@ jobs:
             dotnet build "$CSPROJ" -c Release -p:DefineConstants="ALLOW_SELFHOST"
           fi
 
-
-
-      - name: Export iOS Project
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/build/ios"
-          TPL_DIR="$HOME/Library/Application Support/Godot/export_templates"
-          if [ -d "$TPL_DIR/4.7.2.stable.mono" ] && [ ! -e "$TPL_DIR/4.7.2.stable" ]; then
-            ln -s "$TPL_DIR/4.7.2.stable.mono" "$TPL_DIR/4.7.2.stable"
-          fi
-          sed -i '' 's/, "res:\/\/addons\/PolytoriaExportPlugin\/plugin.cfg"//g' Polytoria/project.godot
-          sed -i '' 's/config\/name="Polytoria"/config\/name="polyiphone"/g' Polytoria/project.godot
-          printf '\n[rendering]\nrenderer/rendering_method="mobile"\nrenderer/rendering_method.mobile="mobile"\nanti_aliasing/quality/msaa_3d=0\nlights_and_shadows/directional_shadow/size=1024\n' >> Polytoria/project.godot
-          GODOT_BIN=~/patched-godot/godot.macos.editor.x86_64.mono
-          chmod +x "$GODOT_BIN"
-          "$GODOT_BIN" --headless --path Polytoria --import || true
-          "$GODOT_BIN" --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj" || true
-          ls -la "$GITHUB_WORKSPACE/build/ios"
-
-     name: Build polyiphone IPA
-
-on: [workflow_dispatch]
-
-jobs:
-  build-ios:
-    runs-on: macos-15-intel
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Register PolyTouchControls Safely
-        run: |
-          CTRL_PATH=$(find Polytoria -iname "PolyTouchControls.cs" | head -n 1)
-          if [ -n "$CTRL_PATH" ]; then
-            REL_PATH="${CTRL_PATH#Polytoria/}"
-            if ! grep -q "PolyTouchControls=" Polytoria/project.godot; then
-              awk -v line="PolyTouchControls=\"*res://$REL_PATH\"" '
-                /^\[autoload\]/ { print; print line; next }
-                { print }
-              ' Polytoria/project.godot > Polytoria/project.godot.tmp && mv Polytoria/project.godot.tmp Polytoria/project.godot
-            fi
-          fi
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Setup Godot 4 (.NET Templates & Glue)
-        uses: chickensoft-games/setup-godot@v2
-        with:
-          version: 4.7.2
-          use-dotnet: true
-          include-templates: true
-
-      - name: Cache Patched Godot 4.7.2 Editor
-        id: cache-godot
-        uses: actions/cache@v4
-        with:
-          path: ~/patched-godot
-          key: godot-4.7.2-ios-csharp-macos-v3
-
-      - name: Checkout Godot 4.7.2 Source
-        if: steps.cache-godot.outputs.cache-hit != 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: godotengine/godot
-          ref: 4.7.2-stable
-          path: godot-src
-
-      - name: Build Patched Godot 4.7.2 Editor (Bypass C# iOS Block)
-        if: steps.cache-godot.outputs.cache-hit != 'true'
-        run: |
-          brew install scons
-          mv godot-src /tmp/godot-src
-          python3 -c '
-          import glob
-          for path in glob.glob("/tmp/godot-src/platform/**/export/*.cpp", recursive=True):
-              txt = open(path, encoding="utf-8", errors="ignore").read()
-              if "Exporting to an Apple Embedded platform when using C#/.NET is experimental" in txt:
-                  lines = [l for l in txt.splitlines(True) if "Exporting to an Apple Embedded platform when using C#/.NET is experimental" not in l]
-                  open(path, "w", encoding="utf-8").writelines(lines)
-                  print("Patched:", path)
-          '
-          cd /tmp/godot-src
-          scons platform=macos arch=x86_64 target=editor module_mono_enabled=yes vulkan=no angle=no accesskit=no -j$(sysctl -n hw.ncpu)
-          ./bin/godot.macos.editor.x86_64.mono --headless --generate-mono-glue modules/mono/glue
-          python3 modules/mono/build_scripts/build_assemblies.py --godot-output-dir=./bin --godot-platform=macos
-          mkdir -p ~/patched-godot
-          cp -r ./bin/* ~/patched-godot/
-
-      - name: Restore and Build C# Assembly
-        run: |
-          CSPROJ=$(find Polytoria -name "*.csproj" | head -n 1)
-          if [ -n "$CSPROJ" ]; then
-            python3 -c '
-          import sys
-          path = sys.argv
-          txt = open(path, encoding="utf-8").read()
-          if "ALLOW_SELFHOST" not in txt:
-              txt = txt.replace("</PropertyGroup>", "  <DefineConstants>$(DefineConstants);ALLOW_SELFHOST</DefineConstants>\n  </PropertyGroup>", 1)
-              open(path, "w", encoding="utf-8").write(txt)
-              print("Enabled ALLOW_SELFHOST in", path)
-          ' "$CSPROJ"
-            dotnet restore "$CSPROJ"
-            dotnet build "$CSPROJ" -c Release -p:DefineConstants="ALLOW_SELFHOST"
-          fi
-
       - name: Export iOS Project
         run: |
           mkdir -p "$GITHUB_WORKSPACE/build/ios"
@@ -307,11 +198,22 @@ jobs:
             grep -E "error:|fatal error:|Undefined symbols|library not found" "$GITHUB_WORKSPACE/xcode.log" | tail -n 15
             exit 1
           }
+APP_PATH=$(find "$GITHUB_WORKSPACE/build/derived" -name "*.app" | head -n 1)
+mkdir -p Payload
+cp -r "$APP_PATH" Payload/polyiphone.app
+/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName polyiphone" Payload/polyiphone.app/Info.plist || true
+/usr/libexec/PlistBuddy -c "Set :CFBundleName polyiphone" Payload/polyiphone.app/Info.plist || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" Payload/polyiphone.app/Info.plist || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" Payload/polyiphone.app/Info.plist || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.yousef.polyiphone" Payload/polyiphone.app/Info.plist || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" Payload/polyiphone.app/Info.plist || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string polytoria" Payload/polyiphone.app/Info.plist || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:1 string polyiphone" Payload/polyiphone.app/Info.plist || true
+zip -r "$GITHUB_WORKSPACE/polyiphone.ipa" Payload
 
 
-
-          - name: Upload polyiphone.ipa
-           uses: actions/upload-artifact@v4
-           with:
-           name: polyiphone-ipa
-          path: polyiphone.ipa
+- name: Upload polyiphone.ipa
+uses: actions/upload-artifact@v4
+with:
+name: polyiphone-ipa
+path: polyiphone.ipa
