@@ -1,3 +1,5 @@
+using System;
+using System.Reflection;
 using Godot;
 
 public partial class PolyTouchControls : CanvasLayer
@@ -6,11 +8,14 @@ public partial class PolyTouchControls : CanvasLayer
 	private Control _stickBase;
 	private Control _stickKnob;
 	private Control _jumpButton;
+	private Button _pasteJoinButton;
+	private Label _statusLabel;
 
 	private int _moveTouchIndex = -1;
 	private int _jumpTouchIndex = -1;
 	private Vector2 _stickCenter = Vector2.Zero;
 	private Vector2 _knobOffset = Vector2.Zero;
+	private string _lastHandledUri = string.Empty;
 
 	private const float MaxRadius = 64.0f;
 	private const float Deadzone = 0.18f;
@@ -39,14 +44,172 @@ public partial class PolyTouchControls : CanvasLayer
 		_jumpButton.MouseFilter = Control.MouseFilterEnum.Ignore;
 		_root.AddChild(_jumpButton);
 
-		PositionJumpButton();
-		GetViewport().SizeChanged += PositionJumpButton;
+		BuildJoinBar();
+
+		PositionControls();
+		GetViewport().SizeChanged += PositionControls;
+
+		CallDeferred(nameof(TryClipboardConnect), false);
 	}
 
-	private void PositionJumpButton()
+	private void BuildJoinBar()
+	{
+		_pasteJoinButton = new Button();
+		_pasteJoinButton.Text = "Paste & Join";
+		_pasteJoinButton.CustomMinimumSize = new Vector2(150f, 44f);
+		_pasteJoinButton.AddThemeFontSizeOverride("font_size", 16);
+		_pasteJoinButton.Pressed += () => TryClipboardConnect(true);
+		_root.AddChild(_pasteJoinButton);
+
+		_statusLabel = new Label();
+		_statusLabel.Text = "";
+		_statusLabel.HorizontalAlignment = HorizontalAlignment.Right;
+		_statusLabel.AddThemeFontSizeOverride("font_size", 13);
+		_statusLabel.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f, 0.9f));
+		_statusLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_root.AddChild(_statusLabel);
+	}
+
+	private void PositionControls()
 	{
 		Vector2 viewSize = GetViewport().GetVisibleRect().Size;
 		_jumpButton.Position = new Vector2(viewSize.X - 110.0f, viewSize.Y - 110.0f);
+		_pasteJoinButton.Position = new Vector2(viewSize.X - 175.0f, 24.0f);
+		_statusLabel.Position = new Vector2(viewSize.X - 360.0f, 74.0f);
+		_statusLabel.Size = new Vector2(335.0f, 28.0f);
+	}
+
+	public override void _Notification(int what)
+	{
+		if (what == NotificationApplicationFocusIn || what == NotificationApplicationResumed)
+		{
+			CallDeferred(nameof(TryClipboardConnect), false);
+		}
+	}
+
+	private void TryClipboardConnect(bool manualTap)
+	{
+		string clip = DisplayServer.ClipboardGet()?.Trim() ?? string.Empty;
+		if (string.IsNullOrEmpty(clip))
+		{
+			if (manualTap) ShowStatus("Clipboard is empty. Copy polytoria:// link first.");
+			return;
+		}
+
+		string uri = ExtractPolytoriaUri(clip);
+		if (string.IsNullOrEmpty(uri))
+		{
+			if (manualTap) ShowStatus("No polytoria:// link found in clipboard.");
+			return;
+		}
+
+		if (!manualTap && uri == _lastHandledUri)
+		{
+			return;
+		}
+
+		_lastHandledUri = uri;
+		ShowStatus("Joining server...");
+		ForwardDeepLinkToPolytoria(uri);
+	}
+
+	private static string ExtractPolytoriaUri(string text)
+	{
+		int idx = text.IndexOf("polytoria://", StringComparison.OrdinalIgnoreCase);
+		if (idx >= 0)
+		{
+			string sub = text.Substring(idx).Trim();
+			int end = sub.IndexOfAny(new[] { ' ', '\n', '\r', '\t', '"', '\'' });
+			return end > 0 ? sub.Substring(0, end) : sub;
+		}
+
+		if (text.Length > 20 && !text.Contains(" ") && !text.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+		{
+			return "polytoria://" + text;
+		}
+
+		return string.Empty;
+	}
+
+	private void ForwardDeepLinkToPolytoria(string uri)
+	{
+		Node root = GetTree().Root;
+		bool dispatched = DispatchRecursive(root, uri);
+		if (dispatched)
+		{
+			_pasteJoinButton.Visible = false;
+			ShowStatus("Connected!");
+		}
+		else
+		{
+			ShowStatus("Sent join link to client.");
+		}
+	}
+
+	private bool DispatchRecursive(Node node, string uri)
+	{
+		bool handled = false;
+
+		if (node.HasSignal("deeplink_received"))
+		{
+			node.EmitSignal("deeplink_received", uri);
+			handled = true;
+		}
+
+		string[] candidateMethods =
+		{
+			"OnDeeplinkReceived",
+			"_on_deeplink_received",
+			"HandleDeeplink",
+			"ProcessDeeplink",
+			"ParseLaunchArgs",
+			"ConnectFromUri",
+			"JoinServer"
+		};
+
+		foreach (string method in candidateMethods)
+		{
+			if (node.HasMethod(method))
+			{
+				node.Call(method, uri);
+				handled = true;
+			}
+		}
+
+		Type type = node.GetType();
+		if (type.Namespace != null && type.Namespace.StartsWith("Polytoria"))
+		{
+			foreach (MethodInfo mi in type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+			{
+				string name = mi.Name.ToLowerInvariant();
+				ParameterInfo[] pars = mi.GetParameters();
+				if (pars.Length == 1 && pars.ParameterType == typeof(string) &&
+					(name.Contains("deeplink") || name.Contains("launch") || name.Contains("protocol") || name.Contains("uri")))
+				{
+					try
+					{
+						mi.Invoke(node, new object[] { uri });
+						handled = true;
+					}
+					catch { }
+				}
+			}
+		}
+
+		foreach (Node child in node.GetChildren())
+		{
+			if (DispatchRecursive(child, uri))
+			{
+				handled = true;
+			}
+		}
+
+		return handled;
+	}
+
+	private void ShowStatus(string msg)
+	{
+		_statusLabel.Text = msg;
 	}
 
 	public override void _Input(InputEvent @event)
@@ -206,4 +369,3 @@ public partial class PolyTouchControls : CanvasLayer
 		}
 	}
 }
-
