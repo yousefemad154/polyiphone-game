@@ -89,7 +89,6 @@ jobs:
             dotnet build "$CSPROJ" -c Release -p:DefineConstants="ALLOW_SELFHOST"
           fi
 
-          fi
 
       - name: Export iOS Project
         run: |
