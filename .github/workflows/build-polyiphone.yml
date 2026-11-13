@@ -103,9 +103,18 @@ jobs:
             echo "ERROR: Godot did not generate an .xcodeproj."
             exit 1
           fi
+          cat << 'EOF' > ios26_stubs.m
+          #import <Foundation/Foundation.h>
+          __attribute__((weak)) NSString * const CADynamicRangeAutomatic = @"automatic";
+          __attribute__((weak)) NSString * const CADynamicRangeConstrainedHigh = @"constrainedHigh";
+          __attribute__((weak)) NSString * const CADynamicRangeHigh = @"high";
+          __attribute__((weak)) NSString * const CADynamicRangeStandard = @"standard";
+          __attribute__((weak)) NSErrorDomain const MTLTensorDomain = @"MTLTensorDomain";
+          EOF
+          xcrun -sdk iphoneos clang -c ios26_stubs.m -arch arm64 -fobjc-arc -o ios26_stubs.o
           SCHEME=$(basename "$PROJ_FILE" .xcodeproj)
           set -o pipefail
-          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" ENABLE_BITCODE=NO OTHER_LDFLAGS='$(inherited) -ld_classic' build 2>&1 | tee "$GITHUB_WORKSPACE/xcode.log" || {
+          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath "$GITHUB_WORKSPACE/build/derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" ENABLE_BITCODE=NO OTHER_LDFLAGS="\$(inherited) -ld_classic $GITHUB_WORKSPACE/build/ios/ios26_stubs.o" build 2>&1 | tee "$GITHUB_WORKSPACE/xcode.log" || {
             echo "=== XCODE LINKER DETAILS ==="
             grep -B 15 -A 2 "linker command failed" "$GITHUB_WORKSPACE/xcode.log" | tail -n 20
             grep -E "error:|fatal error:|Undefined symbols|library not found" "$GITHUB_WORKSPACE/xcode.log" | tail -n 15
