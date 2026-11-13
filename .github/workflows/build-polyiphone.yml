@@ -1,4 +1,4 @@
--name: Build polyiphone IPA
+name: Build polyiphone IPA
 
 on: [workflow_dispatch]
 
