@@ -82,7 +82,6 @@ public partial class PolyTouchControls : CanvasLayer
 		_fpsLabel.AddThemeColorOverride("font_color", new Color(0.55f, 0.95f, 0.65f, 1f));
 		_root.AddChild(_fpsLabel);
 
-		// Bottom 1 2 3 Hotbar (Matches Screenshot 1)
 		_hotbarRow = new HBoxContainer();
 		_hotbarRow.AddThemeConstantOverride("separation", 6);
 		_root.AddChild(_hotbarRow);
@@ -166,7 +165,6 @@ public partial class PolyTouchControls : CanvasLayer
 		kTab.Pressed += () => { _clientBox.Visible = false; _controlsBox.Visible = true; };
 		tabs.AddChild(kTab);
 
-		// Client Tab: Resolution, Stats Overlay, Max FPS
 		_clientBox = new VBoxContainer();
 		_clientBox.AddThemeConstantOverride("separation", 10);
 		box.AddChild(_clientBox);
@@ -197,7 +195,6 @@ public partial class PolyTouchControls : CanvasLayer
 			fpsRow.AddChild(fBtn);
 		}
 
-		// Controls Tab: Camera Sensitivity & Custom Key Adder
 		_controlsBox = new VBoxContainer { Visible = false };
 		_controlsBox.AddThemeConstantOverride("separation", 10);
 		box.AddChild(_controlsBox);
@@ -307,9 +304,9 @@ public partial class PolyTouchControls : CanvasLayer
 			Vector2 v = GetViewport().GetVisibleRect().Size;
 			if (t.Pressed)
 			{
-				if (t.Position.DistanceTo(_jumpBtn.Position) <= 58f) { _jumpBtn.Pressed = true; Input.ActionPress("jump"); GetViewport().SetInputAsHandled(); return; }
-				if (t.Position.DistanceTo(_sprintBtn.Position) <= 38f) { _sprint = !_sprint; _sprintBtn.Pressed = _sprint; if (_sprint) Input.ActionPress("sprint"); else Input.ActionRelease("sprint"); GetViewport().SetInputAsHandled(); return; }
-				if (t.Position.DistanceTo(_eBtn.Position) <= 34f) { _eBtn.Pressed = true; Input.ActionPress("interact"); GetViewport().SetInputAsHandled(); return; }
+				if (t.Position.DistanceTo(_jumpBtn.Position) <= 58f) { _jumpBtn.Pressed = true; Act("jump", true, 1f); GetViewport().SetInputAsHandled(); return; }
+				if (t.Position.DistanceTo(_sprintBtn.Position) <= 38f) { _sprint = !_sprint; _sprintBtn.Pressed = _sprint; Act("sprint", _sprint, 1f); GetViewport().SetInputAsHandled(); return; }
+				if (t.Position.DistanceTo(_eBtn.Position) <= 34f) { _eBtn.Pressed = true; Act("interact", true, 1f); GetViewport().SetInputAsHandled(); return; }
 				for (int i = 0; i < _customBtns.Count; i++)
 				{
 					if (t.Position.DistanceTo(_customBtns[i].Position) <= 34f)
@@ -325,10 +322,10 @@ public partial class PolyTouchControls : CanvasLayer
 			}
 			else
 			{
-				_jumpBtn.Pressed = false; Input.ActionRelease("jump");
-				_eBtn.Pressed = false; Input.ActionRelease("interact");
+				_jumpBtn.Pressed = false; Act("jump", false, 0f);
+				_eBtn.Pressed = false; Act("interact", false, 0f);
 				foreach (CircleBtn cb in _customBtns) cb.Pressed = false;
-				if (t.Index == _moveIdx) { _moveIdx = -1; _stickBase.Visible = _stickKnob.Visible = false; Input.ActionRelease("forward"); Input.ActionRelease("backward"); Input.ActionRelease("leftward"); Input.ActionRelease("rightward"); }
+				if (t.Index == _moveIdx) { _moveIdx = -1; _stickBase.Visible = _stickKnob.Visible = false; Act("forward", false, 0f); Act("backward", false, 0f); Act("leftward", false, 0f); Act("rightward", false, 0f); }
 				else if (t.Index == _lookIdx) _lookIdx = -1;
 			}
 		}
@@ -358,7 +355,14 @@ public partial class PolyTouchControls : CanvasLayer
 		Input.ParseInputEvent(new InputEventKey { Keycode = k, Pressed = false });
 	}
 
-	private static void Act(string a, bool on, float s) { if (on) Input.ActionPress(a, Mathf.Clamp(s, 0f, 1f)); else if (Input.IsActionPressed(a)) Input.ActionRelease(a); }
+	private static void Act(string a, bool on, float s)
+	{
+		if (a == "sprint") Input.ParseInputEvent(new InputEventKey { Keycode = Key.Shift, Pressed = on });
+		if (a == "interact") Input.ParseInputEvent(new InputEventKey { Keycode = Key.E, Pressed = on });
+		if (!InputMap.HasAction(a)) return;
+		if (on) Input.ActionPress(a, Mathf.Clamp(s, 0f, 1f));
+		else if (Input.IsActionPressed(a)) Input.ActionRelease(a);
+	}
 
 	private partial class CircleDraw : Control
 	{
@@ -377,7 +381,7 @@ public partial class PolyTouchControls : CanvasLayer
 			DrawCircle(Vector2.Zero, _r, _p ? new Color(1, 1, 1, 0.42f) : new Color(0.15f, 0.16f, 0.20f, 0.55f));
 			DrawArc(Vector2.Zero, _r, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.55f), 2.5f, true);
 			Font f = ThemeDB.FallbackFont;
-			Vector2 sz = f.GetStringSize(_t, HorizontalAlignment.Center, -1, _fs);
+Vector2 sz = f.GetStringSize(_t, HorizontalAlignment.Center, -1, _fs);
 DrawString(f, new Vector2(-sz.X * 0.5f, sz.Y * 0.28f), _t, HorizontalAlignment.Center, -1, _fs, Colors.White);
 }
 }
