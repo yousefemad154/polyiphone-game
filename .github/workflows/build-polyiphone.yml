@@ -13,18 +13,12 @@ jobs:
 
       - name: Register PolyTouchControls Safely
         run: |
-          if [ -f "PolyTouchControls.cs" ]; then cp PolyTouchControls.cs Polytoria/PolyTouchControls.cs; fi
+          find . -maxdepth 3 -name "PolyTouchControls.cs" -exec cp {} Polytoria/PolyTouchControls.cs \;
+          find Polytoria \( -name "*.cs" -o -name "*.tscn" \) -exec sed -i '' 's/Waiting for server\.\.\.//g' {} +
           CSPROJ=$(find Polytoria -name "*.csproj" | head -n 1)
           if [ -n "$CSPROJ" ] && ! grep -q "PolyTouchControls.cs" "$CSPROJ"; then
             sed -i '' 's|</Project>|  <ItemGroup><Compile Include="PolyTouchControls.cs" /></ItemGroup>\n</Project>|' "$CSPROJ"
           fi
-          if ! grep -q '^\[autoload\]' Polytoria/project.godot; then
-            printf '\n[autoload]\n' >> Polytoria/project.godot
-          fi
-          if ! grep -q 'PolyTouchControls=' Polytoria/project.godot; then
-            awk '/^\[autoload\]/ { print; print "PolyTouchControls=\"*res://PolyTouchControls.cs\""; next } { print }' Polytoria/project.godot > Polytoria/project.godot.tmp && mv Polytoria/project.godot.tmp Polytoria/project.godot
-          fi
-
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
