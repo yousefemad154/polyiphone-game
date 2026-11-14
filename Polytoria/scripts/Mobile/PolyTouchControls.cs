@@ -19,15 +19,15 @@ public partial class PolyTouchControls : CanvasLayer
 	private Control _stickKnob;
 	private Control _jumpButton;
 
-	private Button _openWebBtn;
-	private LineEdit _serverInput;
-	private Button _joinServerBtn;
+	private PanelContainer _launcherCard;
+	private Button _openWebTopBtn;
 
 	private int _moveTouchIndex = -1;
 	private int _jumpTouchIndex = -1;
 	private Vector2 _stickCenter = Vector2.Zero;
 	private Vector2 _knobOffset = Vector2.Zero;
 	private double _pollTimer = 0.0;
+	private bool _autoOpened = false;
 
 	private const float MaxRadius = 64.0f;
 	private const float Deadzone = 0.18f;
@@ -56,35 +56,65 @@ public partial class PolyTouchControls : CanvasLayer
 		_jumpButton.MouseFilter = Control.MouseFilterEnum.Ignore;
 		_root.AddChild(_jumpButton);
 
-		_openWebBtn = new Button();
-		_openWebBtn.Text = "Polytoria Web";
-		_openWebBtn.CustomMinimumSize = new Vector2(124f, 36f);
-		_openWebBtn.Pressed += () => { if (OS.GetName() == "iOS") poly_show_polydroid_web(); };
-		_root.AddChild(_openWebBtn);
+		// Top-Left Re-Open Button During Gameplay
+		_openWebTopBtn = new Button();
+		_openWebTopBtn.Text = "Polytoria";
+		_openWebTopBtn.CustomMinimumSize = new Vector2(110f, 38f);
+		_openWebTopBtn.AddThemeFontSizeOverride("font_size", 15);
+		_openWebTopBtn.Pressed += OpenPolytoriaWeb;
+		_root.AddChild(_openWebTopBtn);
 
-		_serverInput = new LineEdit();
-		_serverInput.PlaceholderText = "Private IP:Port";
-		_serverInput.CustomMinimumSize = new Vector2(170f, 36f);
-		_root.AddChild(_serverInput);
+		// Polydroid-Style Center Launcher Overlay (Covers "Waiting for Server")
+		_launcherCard = new PanelContainer();
+		_launcherCard.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		_launcherCard.MouseFilter = Control.MouseFilterEnum.Stop;
+		StyleBoxFlat bg = new StyleBoxFlat();
+		bg.BgColor = new Color(0.075f, 0.086f, 0.11f, 1.0f);
+		_launcherCard.AddThemeStyleboxOverride("panel", bg);
+		_root.AddChild(_launcherCard);
 
-		_joinServerBtn = new Button();
-		_joinServerBtn.Text = "Join IP";
-		_joinServerBtn.CustomMinimumSize = new Vector2(76f, 36f);
-		_joinServerBtn.Pressed += OnJoinPrivateServer;
-		_root.AddChild(_joinServerBtn);
+		CenterContainer center = new CenterContainer();
+		_launcherCard.AddChild(center);
+
+		VBoxContainer box = new VBoxContainer();
+		box.AddThemeConstantOverride("separation", 16);
+		center.AddChild(box);
+
+		Label title = new Label();
+		title.Text = "POLYIPHONE";
+		title.HorizontalAlignment = HorizontalAlignment.Center;
+		title.AddThemeFontSizeOverride("font_size", 32);
+		title.AddThemeColorOverride("font_color", new Color(0.95f, 0.35f, 0.35f, 1.0f));
+		box.AddChild(title);
+
+		Button bigPolyBtn = new Button();
+		bigPolyBtn.Text = "Open Polytoria";
+		bigPolyBtn.CustomMinimumSize = new Vector2(260f, 58f);
+		bigPolyBtn.AddThemeFontSizeOverride("font_size", 20);
+		StyleBoxFlat btnStyle = new StyleBoxFlat();
+		btnStyle.BgColor = new Color(0.88f, 0.25f, 0.25f, 1.0f);
+		btnStyle.CornerRadiusTopLeft = 12;
+		btnStyle.CornerRadiusTopRight = 12;
+		btnStyle.CornerRadiusBottomLeft = 12;
+		btnStyle.CornerRadiusBottomRight = 12;
+		bigPolyBtn.AddThemeStyleboxOverride("normal", btnStyle);
+		bigPolyBtn.Pressed += OpenPolytoriaWeb;
+		box.AddChild(bigPolyBtn);
 
 		PositionControls();
 		GetViewport().SizeChanged += PositionControls;
-
-		if (OS.GetName() == "iOS")
-		{
-			CallDeferred(nameof(OpenWebDelayed));
-		}
 	}
 
-	private void OpenWebDelayed()
+	private void OpenPolytoriaWeb()
 	{
-		if (OS.GetName() == "iOS") poly_show_polydroid_web();
+		if (OS.GetName() == "iOS")
+		{
+			poly_show_polydroid_web();
+		}
+		else
+		{
+			OS.ShellOpen("https://polytoria.com");
+		}
 	}
 
 	public override void _Process(double delta)
@@ -95,6 +125,11 @@ public partial class PolyTouchControls : CanvasLayer
 
 		if (OS.GetName() == "iOS")
 		{
+			if (!_autoOpened)
+			{
+				_autoOpened = true;
+				poly_show_polydroid_web();
+			}
 			try
 			{
 				IntPtr ptr = poly_pop_deeplink();
@@ -111,38 +146,6 @@ public partial class PolyTouchControls : CanvasLayer
 			catch { }
 		}
 	}
-	private void OnJoinPrivateServer()
-	{
-		string raw = _serverInput.Text.Trim();
-		if (string.IsNullOrEmpty(raw)) return;
-
-		if (OS.GetName() == "iOS") poly_hide_polydroid_web();
-
-		string host = raw;
-		int port = 24221;
-		int colon = raw.LastIndexOf(':');
-		if (colon > 0 && colon < raw.Length - 1)
-		{
-			host = raw.Substring(0, colon).Trim();
-			int.TryParse(raw.Substring(colon + 1).Trim(), out port);
-		}
-
-		Node entryNode = FindClientEntryNode(GetTree().Root);
-		if (entryNode == null) return;
-		MethodInfo m = entryNode.GetType().GetMethod("Entry", BindingFlags.Instance | BindingFlags.Public);
-		if (m == null) return;
-		ParameterInfo[] p = m.GetParameters();
-		if (p.Length == 1)
-		{
-			Type dt = Nullable.GetUnderlyingType(p[0].ParameterType) ?? p[0].ParameterType;
-			object dataObj = Activator.CreateInstance(dt);
-			SetField(dt, dataObj, "TestIsServer", false);
-			SetField(dt, dataObj, "ConnectAddress", host);
-			SetField(dt, dataObj, "ConnectPort", port);
-			SetField(dt, dataObj, "TestUserID", 1144);
-			m.Invoke(entryNode, new object[] { dataObj });
-		}
-	}
 
 	private void ConnectWithToken(string rawUri)
 	{
@@ -153,6 +156,7 @@ public partial class PolyTouchControls : CanvasLayer
 			if (token.StartsWith("join/", StringComparison.OrdinalIgnoreCase)) token = token.Substring("join/".Length);
 		}
 
+		_launcherCard.Visible = false;
 		if (OS.GetName() == "iOS") poly_hide_polydroid_web();
 
 		Node entryNode = FindClientEntryNode(GetTree().Root);
@@ -162,19 +166,17 @@ public partial class PolyTouchControls : CanvasLayer
 		ParameterInfo[] p = m.GetParameters();
 		if (p.Length == 1)
 		{
-			Type dt = Nullable.GetUnderlyingType(p[0].ParameterType) ?? p[0].ParameterType;
+			Type dt = Nullable.GetUnderlyingType(p.ParameterType) ?? p.ParameterType;
 			object dataObj = Activator.CreateInstance(dt);
-			SetField(dt, dataObj, "Token", token);
+			FieldInfo f = dt.GetField("Token", BindingFlags.Instance | BindingFlags.Public);
+			if (f != null) f.SetValue(dataObj, token);
+			else
+			{
+				PropertyInfo pr = dt.GetProperty("Token", BindingFlags.Instance | BindingFlags.Public);
+				if (pr != null && pr.CanWrite) pr.SetValue(dataObj, token);
+			}
 			m.Invoke(entryNode, new object[] { dataObj });
 		}
-	}
-
-	private static void SetField(Type t, object target, string name, object val)
-	{
-		FieldInfo f = t.GetField(name, BindingFlags.Instance | BindingFlags.Public);
-		if (f != null) { f.SetValue(target, val); return; }
-		PropertyInfo pr = t.GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
-		if (pr != null && pr.CanWrite) pr.SetValue(target, val);
 	}
 
 	private static Node FindClientEntryNode(Node node)
@@ -192,13 +194,12 @@ public partial class PolyTouchControls : CanvasLayer
 	{
 		Vector2 viewSize = GetViewport().GetVisibleRect().Size;
 		_jumpButton.Position = new Vector2(viewSize.X - 110.0f, viewSize.Y - 110.0f);
-		_openWebBtn.Position = new Vector2(16.0f, 16.0f);
-		_serverInput.Position = new Vector2(148.0f, 16.0f);
-		_joinServerBtn.Position = new Vector2(324.0f, 16.0f);
+		_openWebTopBtn.Position = new Vector2(18.0f, 18.0f);
 	}
 
 	public override void _Input(InputEvent @event)
 	{
+		if (_launcherCard != null && _launcherCard.Visible) return;
 		if (@event is InputEventScreenTouch touch)
 		{
 			Vector2 viewSize = GetViewport().GetVisibleRect().Size;
