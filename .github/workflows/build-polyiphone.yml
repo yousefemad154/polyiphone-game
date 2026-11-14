@@ -14,13 +14,16 @@ jobs:
       - name: Register PolyTouchControls Safely
         run: |
           if [ -f "PolyTouchControls.cs" ]; then cp PolyTouchControls.cs Polytoria/PolyTouchControls.cs; fi
+          CSPROJ=$(find Polytoria -name "*.csproj" | head -n 1)
+          if [ -n "$CSPROJ" ] && ! grep -q "PolyTouchControls.cs" "$CSPROJ"; then
+            sed -i '' 's|</Project>|  <ItemGroup><Compile Include="PolyTouchControls.cs" /></ItemGroup>\n</Project>|' "$CSPROJ"
+          fi
           if ! grep -q '^\[autoload\]' Polytoria/project.godot; then
             printf '\n[autoload]\n' >> Polytoria/project.godot
           fi
           if ! grep -q 'PolyTouchControls=' Polytoria/project.godot; then
             awk '/^\[autoload\]/ { print; print "PolyTouchControls=\"*res://PolyTouchControls.cs\""; next } { print }' Polytoria/project.godot > Polytoria/project.godot.tmp && mv Polytoria/project.godot.tmp Polytoria/project.godot
           fi
-          grep -A 5 '^\[autoload\]' Polytoria/project.godot
 
 
       - name: Setup .NET 10
