@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using Godot;
 
 public partial class PolyTouchControls : CanvasLayer
@@ -11,21 +9,6 @@ public partial class PolyTouchControls : CanvasLayer
 	[DllImport("__Internal")] private static extern void poly_show_polydroid_web();
 	[DllImport("__Internal")] private static extern void poly_hide_polydroid_web();
 	[DllImport("__Internal")] private static extern IntPtr poly_pop_deeplink();
-
-	[ModuleInitializer]
-	public static void AutoBoot()
-	{
-		Task.Run(async () =>
-		{
-			while (Engine.GetMainLoop() is not SceneTree tree || tree.Root == null)
-				await Task.Delay(50);
-			Callable.From(() =>
-			{
-				if (tree.Root.GetNodeOrNull("PolyTouchControls") == null)
-					tree.Root.AddChild(new PolyTouchControls { Name = "PolyTouchControls" });
-			}).CallDeferred();
-		});
-	}
 
 	private Control _root, _stickBase, _stickKnob;
 	private CircleBtn _jumpBtn, _sprintBtn, _eBtn;
@@ -49,6 +32,7 @@ public partial class PolyTouchControls : CanvasLayer
 	{
 		Layer = 128;
 		ProcessMode = ProcessModeEnum.Always;
+		Input.MouseMode = Input.MouseModeEnum.Visible;
 
 		_root = new Control();
 		_root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -236,7 +220,12 @@ public partial class PolyTouchControls : CanvasLayer
 
 	public override void _Process(double delta)
 	{
-		if (_showStats && _fpsLabel.Visible) _fpsLabel.Text = "FPS: " + Engine.GetFramesPerSecond();
+		if (_launcher.Visible || _settings.Visible)
+			Input.MouseMode = Input.MouseModeEnum.Visible;
+
+		if (_showStats && _fpsLabel.Visible)
+			_fpsLabel.Text = "FPS: " + Engine.GetFramesPerSecond();
+
 		if ((_timer += delta) < 0.25 || OS.GetName() != "iOS") return;
 		_timer = 0;
 		try
@@ -379,8 +368,8 @@ public partial class PolyTouchControls : CanvasLayer
 		public override void _Draw()
 		{
 			DrawCircle(Vector2.Zero, _r, _p ? new Color(1, 1, 1, 0.42f) : new Color(0.15f, 0.16f, 0.20f, 0.55f));
-			DrawArc(Vector2.Zero, _r, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.55f), 2.5f, true);
-			Font f = ThemeDB.FallbackFont;
+DrawArc(Vector2.Zero, _r, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.55f), 2.5f, true);
+Font f = ThemeDB.FallbackFont;
 Vector2 sz = f.GetStringSize(_t, HorizontalAlignment.Center, -1, _fs);
 DrawString(f, new Vector2(-sz.X * 0.5f, sz.Y * 0.28f), _t, HorizontalAlignment.Center, -1, _fs, Colors.White);
 }
