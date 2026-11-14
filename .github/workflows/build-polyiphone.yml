@@ -13,12 +13,9 @@ jobs:
 
       - name: Register PolyTouchControls Safely
         run: |
-          CTRL_PATH=$(find Polytoria -iname "PolyTouchControls.cs" | head -n 1)
-          if [ -n "$CTRL_PATH" ]; then
-            REL_PATH="${CTRL_PATH#Polytoria/}"
-            if ! grep -q "PolyTouchControls=" Polytoria/project.godot; then
-              awk -v line="PolyTouchControls=\"*res://$REL_PATH\"" '/^\[autoload\]/ { print; print line; next } { print }' Polytoria/project.godot > Polytoria/project.godot.tmp && mv Polytoria/project.godot.tmp Polytoria/project.godot
-            fi
+          if [ -f "PolyTouchControls.cs" ]; then cp PolyTouchControls.cs Polytoria/PolyTouchControls.cs; fi
+          if [ -f "Polytoria/PolyTouchControls.cs" ] && ! grep -q "PolyTouchControls=" Polytoria/project.godot; then
+            awk '/^\[autoload\]/ { print; print "PolyTouchControls=\"*res://PolyTouchControls.cs\""; next } { print }' Polytoria/project.godot > Polytoria/project.godot.tmp && mv Polytoria/project.godot.tmp Polytoria/project.godot
           fi
 
       - name: Setup .NET 10
