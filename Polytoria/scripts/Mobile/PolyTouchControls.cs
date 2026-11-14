@@ -21,9 +21,11 @@ public partial class PolyTouchControls : CanvasLayer
 
 	private PanelContainer _launcherCard;
 	private Button _openWebTopBtn;
+	private Label _statusPill;
 
 	private int _moveTouchIndex = -1;
 	private int _jumpTouchIndex = -1;
+	private int _lookTouchIndex = -1;
 	private Vector2 _stickCenter = Vector2.Zero;
 	private Vector2 _knobOffset = Vector2.Zero;
 	private double _pollTimer = 0.0;
@@ -56,13 +58,19 @@ public partial class PolyTouchControls : CanvasLayer
 		_jumpButton.MouseFilter = Control.MouseFilterEnum.Ignore;
 		_root.AddChild(_jumpButton);
 
-		// Top-Left Re-Open Button During Gameplay
+		// Top-Left Re-Open Polytoria Button + Status Pill
 		_openWebTopBtn = new Button();
 		_openWebTopBtn.Text = "Polytoria";
-		_openWebTopBtn.CustomMinimumSize = new Vector2(110f, 38f);
-		_openWebTopBtn.AddThemeFontSizeOverride("font_size", 15);
+		_openWebTopBtn.CustomMinimumSize = new Vector2(114f, 40f);
+		_openWebTopBtn.AddThemeFontSizeOverride("font_size", 16);
 		_openWebTopBtn.Pressed += OpenPolytoriaWeb;
 		_root.AddChild(_openWebTopBtn);
+
+		_statusPill = new Label();
+		_statusPill.Text = "";
+		_statusPill.AddThemeFontSizeOverride("font_size", 14);
+		_statusPill.AddThemeColorOverride("font_color", new Color(0.85f, 0.92f, 1.0f, 0.9f));
+		_root.AddChild(_statusPill);
 
 		// Polydroid-Style Center Launcher Overlay (Covers "Waiting for Server")
 		_launcherCard = new PanelContainer();
@@ -77,20 +85,20 @@ public partial class PolyTouchControls : CanvasLayer
 		_launcherCard.AddChild(center);
 
 		VBoxContainer box = new VBoxContainer();
-		box.AddThemeConstantOverride("separation", 16);
+		box.AddThemeConstantOverride("separation", 18);
 		center.AddChild(box);
 
 		Label title = new Label();
 		title.Text = "POLYIPHONE";
 		title.HorizontalAlignment = HorizontalAlignment.Center;
-		title.AddThemeFontSizeOverride("font_size", 32);
+		title.AddThemeFontSizeOverride("font_size", 34);
 		title.AddThemeColorOverride("font_color", new Color(0.95f, 0.35f, 0.35f, 1.0f));
 		box.AddChild(title);
 
 		Button bigPolyBtn = new Button();
 		bigPolyBtn.Text = "Open Polytoria";
-		bigPolyBtn.CustomMinimumSize = new Vector2(260f, 58f);
-		bigPolyBtn.AddThemeFontSizeOverride("font_size", 20);
+		bigPolyBtn.CustomMinimumSize = new Vector2(270f, 60f);
+		bigPolyBtn.AddThemeFontSizeOverride("font_size", 21);
 		StyleBoxFlat btnStyle = new StyleBoxFlat();
 		btnStyle.BgColor = new Color(0.88f, 0.25f, 0.25f, 1.0f);
 		btnStyle.CornerRadiusTopLeft = 12;
@@ -104,7 +112,6 @@ public partial class PolyTouchControls : CanvasLayer
 		PositionControls();
 		GetViewport().SizeChanged += PositionControls;
 	}
-
 	private void OpenPolytoriaWeb()
 	{
 		if (OS.GetName() == "iOS")
@@ -157,6 +164,7 @@ public partial class PolyTouchControls : CanvasLayer
 		}
 
 		_launcherCard.Visible = false;
+		_statusPill.Text = "Connecting to server...";
 		if (OS.GetName() == "iOS") poly_hide_polydroid_web();
 
 		Node entryNode = FindClientEntryNode(GetTree().Root);
@@ -195,11 +203,13 @@ public partial class PolyTouchControls : CanvasLayer
 		Vector2 viewSize = GetViewport().GetVisibleRect().Size;
 		_jumpButton.Position = new Vector2(viewSize.X - 110.0f, viewSize.Y - 110.0f);
 		_openWebTopBtn.Position = new Vector2(18.0f, 18.0f);
+		_statusPill.Position = new Vector2(146.0f, 26.0f);
 	}
 
 	public override void _Input(InputEvent @event)
 	{
 		if (_launcherCard != null && _launcherCard.Visible) return;
+
 		if (@event is InputEventScreenTouch touch)
 		{
 			Vector2 viewSize = GetViewport().GetVisibleRect().Size;
@@ -213,7 +223,7 @@ public partial class PolyTouchControls : CanvasLayer
 					GetViewport().SetInputAsHandled();
 					return;
 				}
-				if (_moveTouchIndex == -1 && touch.Position.X < viewSize.X * 0.48f && touch.Position.Y > 64.0f)
+				if (_moveTouchIndex == -1 && touch.Position.X < viewSize.X * 0.45f && touch.Position.Y > 68.0f)
 				{
 					_moveTouchIndex = touch.Index;
 					_stickCenter = touch.Position;
@@ -222,6 +232,12 @@ public partial class PolyTouchControls : CanvasLayer
 					_stickKnob.Position = _stickCenter;
 					_stickBase.Visible = true;
 					_stickKnob.Visible = true;
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+				if (_lookTouchIndex == -1 && touch.Position.X >= viewSize.X * 0.45f && touch.Position.Y > 68.0f)
+				{
+					_lookTouchIndex = touch.Index;
 					GetViewport().SetInputAsHandled();
 				}
 			}
@@ -243,16 +259,31 @@ public partial class PolyTouchControls : CanvasLayer
 					ReleaseMovementActions();
 					GetViewport().SetInputAsHandled();
 				}
+				else if (touch.Index == _lookTouchIndex)
+				{
+					_lookTouchIndex = -1;
+					GetViewport().SetInputAsHandled();
+				}
 			}
 		}
-		else if (@event is InputEventScreenDrag drag && drag.Index == _moveTouchIndex)
+		else if (@event is InputEventScreenDrag drag)
 		{
-			Vector2 delta = drag.Position - _stickCenter;
-			if (delta.Length() > MaxRadius) delta = delta.Normalized() * MaxRadius;
-			_knobOffset = delta;
-			_stickKnob.Position = _stickCenter + _knobOffset;
-			ApplyMovementActions(_knobOffset / MaxRadius);
-			GetViewport().SetInputAsHandled();
+			if (drag.Index == _moveTouchIndex)
+			{
+				Vector2 delta = drag.Position - _stickCenter;
+				if (delta.Length() > MaxRadius) delta = delta.Normalized() * MaxRadius;
+				_knobOffset = delta;
+				_stickKnob.Position = _stickCenter + _knobOffset;
+				ApplyMovementActions(_knobOffset / MaxRadius);
+				GetViewport().SetInputAsHandled();
+			}
+			else if (drag.Index == _lookTouchIndex)
+			{
+				InputEventMouseMotion mm = new InputEventMouseMotion();
+				mm.Relative = drag.Relative * 1.6f;
+				Input.ParseInputEvent(mm);
+				GetViewport().SetInputAsHandled();
+			}
 		}
 	}
 
