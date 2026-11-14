@@ -1,6 +1,8 @@
 using System;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Godot;
 
 public partial class PolyTouchControls : CanvasLayer
@@ -8,6 +10,21 @@ public partial class PolyTouchControls : CanvasLayer
 	[DllImport("__Internal")] private static extern void poly_show_polydroid_web();
 	[DllImport("__Internal")] private static extern void poly_hide_polydroid_web();
 	[DllImport("__Internal")] private static extern IntPtr poly_pop_deeplink();
+
+	[ModuleInitializer]
+	public static void AutoBoot()
+	{
+		Task.Run(async () =>
+		{
+			while (Engine.GetMainLoop() is not SceneTree tree || tree.Root == null)
+				await Task.Delay(50);
+			Callable.From(() =>
+			{
+				if (tree.Root.GetNodeOrNull("PolyTouchControls") == null)
+					tree.Root.AddChild(new PolyTouchControls { Name = "PolyTouchControls" });
+			}).CallDeferred();
+		});
+	}
 
 	private Control _root, _stickBase, _stickKnob;
 	private CircleBtn _jumpBtn, _sprintBtn, _eBtn;
@@ -22,7 +39,7 @@ public partial class PolyTouchControls : CanvasLayer
 
 	public override void _Ready()
 	{
-		Layer = 100;
+		Layer = 128;
 		ProcessMode = ProcessModeEnum.Always;
 
 		_root = new Control();
