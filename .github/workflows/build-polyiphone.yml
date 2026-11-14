@@ -13,21 +13,15 @@ jobs:
 
       - name: Register PolyTouchControls Safely
         run: |
-          cp PolyTouchControls.cs Polytoria/PolyTouchControls.cs
-          python3 -c '
-          p = "Polytoria/project.godot"
-          txt = open(p, encoding="utf-8").read()
-          if "PolyTouchControls=" not in txt:
-              if "[autoload]" in txt:
-                  txt = txt.replace("[autoload]", "[autoload]\nPolyTouchControls=\"*res://PolyTouchControls.cs\"", 1)
-              else:
-                  txt += "\n[autoload]\nPolyTouchControls=\"*res://PolyTouchControls.cs\"\n"
-              open(p, "w", encoding="utf-8").write(txt)
-          print("=== AUTOLOAD CHECK ===")
-          for line in open(p, encoding="utf-8"):
-              if "autoload" in line or "PolyTouchControls" in line:
-                  print(line.strip())
-          '
+          if [ -f "PolyTouchControls.cs" ]; then cp PolyTouchControls.cs Polytoria/PolyTouchControls.cs; fi
+          if ! grep -q '^\[autoload\]' Polytoria/project.godot; then
+            printf '\n[autoload]\n' >> Polytoria/project.godot
+          fi
+          if ! grep -q 'PolyTouchControls=' Polytoria/project.godot; then
+            awk '/^\[autoload\]/ { print; print "PolyTouchControls=\"*res://PolyTouchControls.cs\""; next } { print }' Polytoria/project.godot > Polytoria/project.godot.tmp && mv Polytoria/project.godot.tmp Polytoria/project.godot
+          fi
+          grep -A 5 '^\[autoload\]' Polytoria/project.godot
+
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
