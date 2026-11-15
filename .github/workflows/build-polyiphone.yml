@@ -87,7 +87,7 @@ jobs:
           GODOT_BIN=~/patched-godot/godot.macos.editor.x86_64.mono
           chmod +x "$GODOT_BIN"
           "$GODOT_BIN" --headless --path Polytoria --import || true
-          "$GODOT_BIN" --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj" || true
+          "$GODOT_BIN" --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
 
       - name: Build Unsigned IPA
         run: |
