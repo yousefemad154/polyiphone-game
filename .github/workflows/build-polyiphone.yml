@@ -82,6 +82,7 @@ jobs:
             ln -s "$TPL_DIR/4.7.2.stable.mono" "$TPL_DIR/4.7.2.stable"
           fi
           sed -i '' 's/, "res:\/\/addons\/PolytoriaExportPlugin\/plugin.cfg"//g' Polytoria/project.godot
+          sed -i '' 's/, "res:\/\/addons\/DeeplinkPlugin\/plugin.cfg"//g' Polytoria/project.godot
           sed -i '' 's/config\/name="Polytoria"/config\/name="polyiphone"/g' Polytoria/project.godot
           if [ -f "Polytoria/export_presets.cfg" ]; then
             sed -i '' 's/Apple Distribution//g' Polytoria/export_presets.cfg
