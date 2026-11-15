@@ -86,7 +86,7 @@ jobs:
           printf '\n[rendering]\nrenderer/rendering_method="mobile"\nrenderer/rendering_method.mobile="mobile"\nanti_aliasing/quality/msaa_3d=0\nlights_and_shadows/directional_shadow/size=1024\n' >> Polytoria/project.godot
           GODOT_BIN=~/patched-godot/godot.macos.editor.x86_64.mono
           chmod +x "$GODOT_BIN"
-          "$GODOT_BIN" --headless --path Polytoria --import || true
+          "$GODOT_BIN" --headless --path Polytoria --import
           "$GODOT_BIN" --headless --verbose --path Polytoria --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
 
       - name: Build Unsigned IPA
