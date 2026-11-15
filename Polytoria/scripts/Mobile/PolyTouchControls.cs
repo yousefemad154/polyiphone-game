@@ -21,7 +21,7 @@ public partial class PolyTouchControls : CanvasLayer
 	private PanelContainer _launcher, _settings;
 	private VBoxContainer _clientBox, _controlsBox;
 
-	private int _moveIdx = -1, _lookIdx = -1;
+	private int _moveIdx = -1, _lookIdx = -1, _jumpIdx = -1, _eIdx = -1;
 	private Vector2 _stickCenter, _knobOffset;
 	private double _timer;
 	private bool _sprint, _showStats;
@@ -293,9 +293,9 @@ public partial class PolyTouchControls : CanvasLayer
 			Vector2 v = GetViewport().GetVisibleRect().Size;
 			if (t.Pressed)
 			{
-				if (t.Position.DistanceTo(_jumpBtn.Position) <= 58f) { _jumpBtn.Pressed = true; Act("jump", true, 1f); GetViewport().SetInputAsHandled(); return; }
+				if (_jumpIdx == -1 && t.Position.DistanceTo(_jumpBtn.Position) <= 58f) { _jumpIdx = t.Index; _jumpBtn.Pressed = true; Act("jump", true, 1f); GetViewport().SetInputAsHandled(); return; }
 				if (t.Position.DistanceTo(_sprintBtn.Position) <= 38f) { _sprint = !_sprint; _sprintBtn.Pressed = _sprint; Act("sprint", _sprint, 1f); GetViewport().SetInputAsHandled(); return; }
-				if (t.Position.DistanceTo(_eBtn.Position) <= 34f) { _eBtn.Pressed = true; Act("interact", true, 1f); GetViewport().SetInputAsHandled(); return; }
+				if (_eIdx == -1 && t.Position.DistanceTo(_eBtn.Position) <= 34f) { _eIdx = t.Index; _eBtn.Pressed = true; Act("interact", true, 1f); GetViewport().SetInputAsHandled(); return; }
 				for (int i = 0; i < _customBtns.Count; i++)
 				{
 					if (t.Position.DistanceTo(_customBtns[i].Position) <= 34f)
@@ -311,11 +311,11 @@ public partial class PolyTouchControls : CanvasLayer
 			}
 			else
 			{
-				_jumpBtn.Pressed = false; Act("jump", false, 0f);
-				_eBtn.Pressed = false; Act("interact", false, 0f);
+				if (t.Index == _jumpIdx) { _jumpIdx = -1; _jumpBtn.Pressed = false; Act("jump", false, 0f); }
+				else if (t.Index == _eIdx) { _eIdx = -1; _eBtn.Pressed = false; Act("interact", false, 0f); }
+				else if (t.Index == _moveIdx) { _moveIdx = -1; _stickBase.Visible = _stickKnob.Visible = false; Act("forward", false, 0f); Act("backward", false, 0f); Act("leftward", false, 0f); Act("rightward", false, 0f); }
+				else if (t.Index == _lookIdx) { _lookIdx = -1; }
 				foreach (CircleBtn cb in _customBtns) cb.Pressed = false;
-				if (t.Index == _moveIdx) { _moveIdx = -1; _stickBase.Visible = _stickKnob.Visible = false; Act("forward", false, 0f); Act("backward", false, 0f); Act("leftward", false, 0f); Act("rightward", false, 0f); }
-				else if (t.Index == _lookIdx) _lookIdx = -1;
 			}
 		}
 		else if (e is InputEventScreenDrag d)
@@ -367,7 +367,7 @@ public partial class PolyTouchControls : CanvasLayer
 		public CircleBtn(float r, string t, int fs) { _r = r; _t = t; _fs = fs; }
 		public override void _Draw()
 		{
-			DrawCircle(Vector2.Zero, _r, _p ? new Color(1, 1, 1, 0.42f) : new Color(0.15f, 0.16f, 0.20f, 0.55f));
+DrawCircle(Vector2.Zero, _r, _p ? new Color(1, 1, 1, 0.42f) : new Color(0.15f, 0.16f, 0.20f, 0.55f));
 DrawArc(Vector2.Zero, _r, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.55f), 2.5f, true);
 Font f = ThemeDB.FallbackFont;
 Vector2 sz = f.GetStringSize(_t, HorizontalAlignment.Center, -1, _fs);
