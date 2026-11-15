@@ -355,7 +355,8 @@ public partial class PolyTouchControls : CanvasLayer
 					_jumpBtn.Pressed = false;
 					Act("jump", false, 0f);
 				}
-				else if (t.Index == _eIdx)
+
+				if (t.Index == _eIdx)
 				{
 					_eIdx = -1;
 					_eBtn.Pressed = false;
