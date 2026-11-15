@@ -97,54 +97,129 @@ jobs:
 
       - name: Build Unsigned IPA
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/build/ios" && cd "$GITHUB_WORKSPACE/build/ios"
+          cd "$GITHUB_WORKSPACE/build/ios"
           PROJ_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
-          if [ -z "$PROJ_FILE" ]; then
-            echo "ERROR: No .xcodeproj"
-            exit 1
-          fi
-
-          printf '%s\n' \
-            '#import <Foundation/Foundation.h>' \
-            '#import <UIKit/UIKit.h>' \
-            '#import <WebKit/WebKit.h>' \
-            'extern __attribute__((weak)) NSString * const CADynamicRangeAutomatic = @"automatic";' \
-            'int main(int argc, char * argv[]) { return 0; }' > ios26_stubs.m
-
-          xcrun -sdk iphoneos clang++ -x objective-c++ -c ios26_stubs.m -arch arm64 -fobjc-arc -o ios26_stubs.o
-
+          if [ -z "$PROJ_FILE" ]; then echo "ERROR: No .xcodeproj"; exit 1; fi
           SCHEME=$(basename "$PROJ_FILE" .xcodeproj)
-          set -o pipefail
+          cat << 'EOF' > ios26_stubs.m
+          #import <UIKit/UIKit.h>
+          #import <WebKit/WebKit.h>
 
-          xcodebuild \
-            -project "$PROJ_FILE" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath "$GITHUB_WORKSPACE/build/derived" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            | tee xcodebuild.log
+          NSString * const MTLTensorDomain = @"MTLTensorDomain";
 
-          APP_PATH=$(find "$GITHUB_WORKSPACE/build/derived" -type d -name "*.app" -print -quit)
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: Xcode build did not produce an .app"
-            exit 1
-          fi
+          static UIWindow *polyWin = nil;
+          static WKWebView *polyWeb = nil;
+          static NSString *queuedDeepLink = nil;
 
+          @interface PolyWebNav : NSObject <WKNavigationDelegate, WKUIDelegate>
+          @end
+          @implementation PolyWebNav
+          - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)action decisionHandler:(void (^)(WKNavigationActionPolicy))handler {
+            NSURL *u = action.request.URL;
+            if (u && [u.scheme.lowercaseString isEqualToString:@"polytoria"]) {
+              queuedDeepLink = [u.absoluteString copy];
+              dispatch_async(dispatch_get_main_queue(), ^{ polyWin.hidden = YES; });
+              handler(WKNavigationActionPolicyCancel);
+              return;
+            }
+            handler(WKNavigationActionPolicyAllow);
+          }
+          - (WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures {
+            if (navigationAction.request.URL) [webView loadRequest:navigationAction.request];
+            return nil;
+          }
+          - (void)goBack { if ([polyWeb canGoBack]) [polyWeb goBack]; }
+          - (void)goHome { [polyWeb loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://polytoria.com"]]]; }
+          - (void)reloadPage { [polyWeb reload]; }
+          - (void)hideWeb { polyWin.hidden = YES; }
+          @end
+
+          static PolyWebNav *polyNav = nil;
+
+          #ifdef __cplusplus
+          extern "C" {
+          #endif
+          void poly_show_polydroid_web(void) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+              if (!polyWin) {
+                UIWindowScene *scene = nil;
+                for (UIScene *s in [UIApplication sharedApplication].connectedScenes) {
+                  if ([s isKindOfClass:[UIWindowScene class]]) { scene = (UIWindowScene *)s; break; }
+                }
+                polyWin = scene ? [[UIWindow alloc] initWithWindowScene:scene] : [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+                polyWin.windowLevel = UIWindowLevelAlert + 10;
+                UIViewController *vc = [[UIViewController alloc] init];
+                vc.view.backgroundColor = [UIColor colorWithRed:0.07 green:0.075 blue:0.094 alpha:1.0];
+                polyNav = [[PolyWebNav alloc] init];
+
+                UIView *bar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, polyWin.bounds.size.width, 46)];
+                bar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+                bar.backgroundColor = [UIColor colorWithRed:0.11 green:0.12 blue:0.15 alpha:1.0];
+
+                NSArray *titles = @[@"< Back", @"Home", @"Reload", @"Hide"];
+                SEL sels[] = {@selector(goBack), @selector(goHome), @selector(reloadPage), @selector(hideWeb)};
+                CGFloat bw = polyWin.bounds.size.width / 4.0;
+                for (int i = 0; i < 4; i++) {
+                  UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
+                  b.frame = CGRectMake(i * bw, 0, bw, 46);
+                  b.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
+                  [b setTitle:titles[i] forState:UIControlStateNormal];
+                  [b setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                  [b addTarget:polyNav action:sels[i] forControlEvents:UIControlEventTouchUpInside];
+                  [bar addSubview:b];
+                }
+                [vc.view addSubview:bar];
+
+                WKWebViewConfiguration *cfg = [[WKWebViewConfiguration alloc] init];
+                cfg.allowsInlineMediaPlayback = YES;
+                polyWeb = [[WKWebView alloc] initWithFrame:CGRectMake(0, 46, polyWin.bounds.size.width, polyWin.bounds.size.height - 46) configuration:cfg];
+                polyWeb.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                polyWeb.navigationDelegate = polyNav;
+                polyWeb.UIDelegate = polyNav;
+                [polyWeb loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://polytoria.com"]]];
+                [vc.view addSubview:polyWeb];
+                polyWin.rootViewController = vc;
+              }
+              polyWin.hidden = NO;
+              [polyWin makeKeyAndVisible];
+            });
+          }
+
+          void poly_hide_polydroid_web(void) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+              if (polyWin) polyWin.hidden = YES;
+            });
+          }
+
+          const char *poly_pop_deeplink(void) {
+            __block const char *res = NULL;
+            void (^work)(void) = ^{
+              if (queuedDeepLink) {
+                res = strdup([queuedDeepLink UTF8String]);
+                queuedDeepLink = nil;
+              }
+            };
+            if ([NSThread isMainThread]) work();
+            else dispatch_sync(dispatch_get_main_queue(), work);
+            return res;
+          }
+          #ifdef __cplusplus
+          }
+          #endif
+          EOF
+          xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc -c ios26_stubs.m -o ios26_stubs.o
+          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -arch arm64 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO OTHER_LDFLAGS="\$(inherited) $PWD/ios26_stubs.o -framework WebKit" CONFIGURATION_BUILD_DIR="$PWD/out" build
+          APP_PATH=$(find out -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then echo "ERROR: .app not found"; exit 1; fi
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$APP_PATH/Info.plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.yousef.polyiphone" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string polytoria" "$APP_PATH/Info.plist"
           mkdir -p Payload
-          cp -r "$APP_PATH" Payload/polyiphone.app
-
-          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName polyiphone" Payload/polyiphone.app/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Set :CFBundleName polyiphone" Payload/polyiphone.app/Info.plist || true
-
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" Payload/polyiphone.app/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" Payload/polyiphone.app/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.yousef.polyiphone" Payload/polyiphone.app/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" Payload/polyiphone.app/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string polytoria" Payload/polyiphone.app/Info.plist || true
-
-          zip -r "$GITHUB_WORKSPACE/polyiphone.ipa" Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry polyiphone.ipa Payload
 
       - name: Upload polyiphone.ipa
         uses: actions/upload-artifact@v4
