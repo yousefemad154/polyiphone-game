@@ -91,7 +91,7 @@ jobs:
           if [ -f "Polytoria/export_presets.cfg" ]; then
             sed -i '' 's/Apple Distribution//g' Polytoria/export_presets.cfg
             sed -i '' 's/Apple Development//g' Polytoria/export_presets.cfg
-            sed -i '' 's/application\/provisioning_profile_uuid_release="[^"]*"/application\/provisioning_profile_uuid_release=""/g' Polytoria/project.godot
+            sed -i '' 's/application\/provisioning_profile_uuid_release="[^"]*"/application\/provisioning_profile_uuid_release=""/g' Polytoria/export_presets.cfg
             sed -i '' 's/application\/provisioning_profile_uuid_debug="[^"]*"/application\/provisioning_profile_uuid_debug=""/g' Polytoria/export_presets.cfg
           fi
           printf '\n[rendering]\nrenderer/rendering_method="mobile"\nrenderer/rendering_method.mobile="mobile"\nanti_aliasing/quality/msaa_3d=0\nlights_and_shadows/directional_shadow/size=1024\n' >> Polytoria/project.godot
