@@ -78,9 +78,19 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/build/ios"
           TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable.mono"
           [ ! -d "$TPL_DIR" ] && TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
-          # Unpack official iOS template and run headless Godot export-pack without triggering xcodebuild signing
           unzip -q "$TPL_DIR/ios.zip" -d "$GITHUB_WORKSPACE/build/ios/tpl"
-          mv "$GITHUB_WORKSPACE/build/ios/tpl/ios_xcode" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
+          TPL_PROJ=$(find "$GITHUB_WORKSPACE/build/ios/tpl" -maxdepth 2 -name "*.xcodeproj" | head -n 1)
+          if [ -z "$TPL_PROJ" ]; then echo "ERROR: No .xcodeproj in ios.zip"; ls -la "$GITHUB_WORKSPACE/build/ios/tpl"; exit 1; fi
+          TPL_ROOT=$(dirname "$TPL_PROJ")
+          cp -R "$TPL_ROOT"/* "$GITHUB_WORKSPACE/build/ios/"
+          mv "$GITHUB_WORKSPACE/build/ios/$(basename "$TPL_PROJ")" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
+          sed -i '' 's/\$name/polyiphone/g' "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj/project.pbxproj"
+          sed -i '' 's/\$binary/polyiphone/g' "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj/project.pbxproj"
+          if [ -f "$GITHUB_WORKSPACE/build/ios/godot_ios-Info.plist" ]; then
+            mv "$GITHUB_WORKSPACE/build/ios/godot_ios-Info.plist" "$GITHUB_WORKSPACE/build/ios/polyiphone-Info.plist"
+            sed -i '' 's/godot_ios/polyiphone/g' "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj/project.pbxproj"
+          fi
+          rm -rf "$GITHUB_WORKSPACE/build/ios/tpl"
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --path Polytoria --import
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --verbose --path Polytoria --export-pack "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.pck"
           test -f "$GITHUB_WORKSPACE/build/ios/polyiphone.pck" || { echo "ERROR: Godot did not generate polyiphone.pck"; exit 1; }
@@ -90,7 +100,7 @@ jobs:
           cd "$GITHUB_WORKSPACE/build/ios"
           PROJ_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
           if [ -z "$PROJ_FILE" ]; then echo "ERROR: No .xcodeproj"; exit 1; fi
-          SCHEME=$(basename "$PROJ_FILE" .xcodeproj)
+          SCHEME=$(xcodebuild -list -project "$PROJ_FILE" | awk '/Schemes:/{getline; gsub(/^[ \t]+|[ \t]+$/, ""); print; exit}')
           cat << 'EOF' > ios26_stubs.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
