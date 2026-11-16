@@ -231,4 +231,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: polyiphone-ipa
-          path: polyiphone.ipa
+          path: build/ios/polyiphone.ipa
