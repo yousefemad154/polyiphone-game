@@ -83,49 +83,26 @@ jobs:
           if [ -z "$TPL_PROJ" ]; then echo "ERROR: No .xcodeproj in ios.zip"; exit 1; fi
           TPL_ROOT=$(dirname "$TPL_PROJ")
           cp -R "$TPL_ROOT"/* "$GITHUB_WORKSPACE/build/ios/"
-          mv "$GITHUB_WORKSPACE/build/ios/$(basename "$TPL_PROJ")" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
-          if [ -f "$GITHUB_WORKSPACE/build/ios/godot_ios-Info.plist" ]; then
-            mv "$GITHUB_WORKSPACE/build/ios/godot_ios-Info.plist" "$GITHUB_WORKSPACE/build/ios/polyiphone-Info.plist"
-          fi
           rm -rf "$GITHUB_WORKSPACE/build/ios/tpl"
-          python3 - << 'PY'
-          import os, re
-          root = os.path.join(os.environ["GITHUB_WORKSPACE"], "build/ios")
-          repl = {
-              "godot_ios": "polyiphone",
-              "$name": "polyiphone",
-              "$binary": "polyiphone",
-              "$bundle_identifier": "com.yousef.polyiphone",
-              "$short_version": "1.0",
-              "$version": "1",
-              "$signature": "????",
-              "$team_id": "",
-              "$code_sign_identity_debug": "",
-              "$code_sign_identity_release": "",
-              "$provisioning_profile_uuid_debug": "",
-              "$provisioning_profile_uuid_release": "",
-              "$targeted_device_family": "1,2",
-              "$orientations": "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight",
+          python3 - UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string>",
               "$additional_plist_content": "",
               "$godot_enabled_plugins": "",
           }
           for dirpath, _, filenames in os.walk(root):
               for fn in filenames:
-                  p = os.path.join(dirpath, fn)
-                  try:
-                      txt = open(p, "r", encoding="utf-8").read()
-                  except Exception:
+                  if not (fn.endswith(".pbxproj") or fn.endswith(".plist") or fn.endswith(".xcscheme") or fn.endswith(".xcworkspacedata")):
                       continue
+                  p = os.path.join(dirpath, fn)
+                  txt = open(p, "r", encoding="utf-8", errors="ignore").read()
                   orig = txt
                   for k, v in repl.items():
                       txt = txt.replace(k, v)
-                  txt = re.sub(r'\$[a-zA-Z0-9_]+', '', txt)
                   if txt != orig:
                       open(p, "w", encoding="utf-8").write(txt)
           PY
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --path Polytoria --import
-          ~/patched-godot/godot.macos.editor.x86_64.mono --headless --verbose --path Polytoria --export-pack "iOS" "$GITHUB_WORKSPACE/build/ios/polyiphone.pck"
-          test -f "$GITHUB_WORKSPACE/build/ios/polyiphone.pck" || { echo "ERROR: Godot did not generate polyiphone.pck"; exit 1; }
+          ~/patched-godot/godot.macos.editor.x86_64.mono --headless --verbose --path Polytoria --export-pack "iOS" "$GITHUB_WORKSPACE/build/ios/godot_ios.pck"
+          test -f "$GITHUB_WORKSPACE/build/ios/godot_ios.pck" || { echo "ERROR: Godot did not generate godot_ios.pck"; exit 1; }
 
       - name: Build Unsigned IPA
         run: |
