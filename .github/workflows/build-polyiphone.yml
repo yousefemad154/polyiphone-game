@@ -84,22 +84,7 @@ jobs:
           TPL_ROOT=$(dirname "$TPL_PROJ")
           cp -R "$TPL_ROOT"/* "$GITHUB_WORKSPACE/build/ios/"
           rm -rf "$GITHUB_WORKSPACE/build/ios/tpl"
-          python3 - UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string>",
-              "$additional_plist_content": "",
-              "$godot_enabled_plugins": "",
-          }
-          for dirpath, _, filenames in os.walk(root):
-              for fn in filenames:
-                  if not (fn.endswith(".pbxproj") or fn.endswith(".plist") or fn.endswith(".xcscheme") or fn.endswith(".xcworkspacedata")):
-                      continue
-                  p = os.path.join(dirpath, fn)
-                  txt = open(p, "r", encoding="utf-8", errors="ignore").read()
-                  orig = txt
-                  for k, v in repl.items():
-                      txt = txt.replace(k, v)
-                  if txt != orig:
-                      open(p, "w", encoding="utf-8").write(txt)
-          PY
+          python3 -c 'import os; root=os.path.join(os.environ["GITHUB_WORKSPACE"],"build/ios"); repl={"$name":"polyiphone","$binary":"godot_ios","$bundle_identifier":"com.yousef.polyiphone","$short_version":"1.0","$version":"1","$signature":"????","$team_id":"","$code_sign_identity_debug":"","$code_sign_identity_release":"","$provisioning_profile_uuid_debug":"","$provisioning_profile_uuid_release":"","$targeted_device_family":"1,2","$orientations":"<string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string>","$additional_plist_content":"","$godot_enabled_plugins":""}; [open(os.path.join(dp,fn),"w",encoding="utf-8").write(eval("".join(["txt"+"".join([f".replace({repr(k)},{repr(v)})" for k,v in repl.items()])]),{"txt":open(os.path.join(dp,fn),"r",encoding="utf-8",errors="ignore").read()})) for dp,_,fns in os.walk(root) for fn in fns if fn.endswith((".pbxproj",".plist",".xcscheme",".xcworkspacedata"))]'
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --path Polytoria --import
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --verbose --path Polytoria --export-pack "iOS" "$GITHUB_WORKSPACE/build/ios/godot_ios.pck"
           test -f "$GITHUB_WORKSPACE/build/ios/godot_ios.pck" || { echo "ERROR: Godot did not generate godot_ios.pck"; exit 1; }
