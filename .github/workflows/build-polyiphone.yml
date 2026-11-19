@@ -164,16 +164,13 @@ jobs:
                           txt = f.read()
                       for k in ordered_keys:
                           txt = txt.replace(k, repl[k])
+                      if fn.endswith(".pbxproj"):
+                          # Fix bare '15.0' lines missing 'IPHONEOS_DEPLOYMENT_TARGET = ' and ';'
+                          txt = re.sub(r"(?m)^([ \t]*)15\.0[ \t]*$", r"\1IPHONEOS_DEPLOYMENT_TARGET = 15.0;", txt)
+                          # Fix empty '= ;' assignments in OpenStep syntax
+                          txt = re.sub(r"=\s*;", '= "";', txt)
                       with open(path, "w", encoding="utf-8") as f:
                           f.write(txt)
-
-          pbxproj = os.path.join(root, "polyiphone.xcodeproj", "project.pbxproj")
-          if os.path.exists(pbxproj):
-              with open(pbxproj, "r", encoding="utf-8", errors="ignore") as f:
-                  lines = f.read().splitlines()
-              print(f"=== project.pbxproj ({len(lines)} lines) ===")
-              for idx, ln in enumerate(lines, 1):
-                  print(f"{idx:03d}: {ln}")
 
           godot_proj = os.path.join(os.environ["GITHUB_WORKSPACE"], "Polytoria/project.godot")
           if os.path.exists(godot_proj):
