@@ -73,9 +73,9 @@ jobs:
             dotnet build "$CSPROJ" -c Release -p:DefineConstants="ALLOW_SELFHOST"
           fi
 
-          - name: Export iOS Project
+      - name: Export iOS Project
         shell: bash
-  run: |
+        run: |
           set -euo pipefail
 
           mkdir -p "$GITHUB_WORKSPACE/build/ios"
@@ -122,20 +122,8 @@ jobs:
               "$orientations": "<string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string>",
               "$additional_plist_content": "",
               "$godot_enabled_plugins": "",
-              "$pbx_embeded_frameworks": "",
-              "$pbx_embedded_frameworks": "",
-              "$pbx_frameworks_build_phase": "",
-              "$pbx_frameworks_build_files": "",
-              "$pbx_resources_build_phase": "",
-              "$pbx_sources_build_phase": "",
-              "$pbx_locale_build_files": "",
-              "$pbx_locale_file_reference": "",
-              "$pbx_launch_screen_file_reference": "",
-              "$pbx_launch_screen_build_file": "",
-              "$pbx_launch_screen_build_phase": "",
           }
 
-          # Replace longest keys first so shorter keys never corrupt longer ones
           ordered_keys = sorted(repl.keys(), key=len, reverse=True)
 
           exts = (".pbxproj", ".plist", ".xcscheme", ".xcworkspacedata")
@@ -147,10 +135,18 @@ jobs:
                           txt = f.read()
                       for k in ordered_keys:
                           txt = txt.replace(k, repl[k])
-                      # Strip any leftover Godot $template_tokens that break Xcode's parser
-                      txt = re.sub(r"\$[a-zA-Z_][a-zA-Z0-9_]*", "", txt)
+                      if fn.endswith(".pbxproj"):
+                          txt = re.sub(r"=\s*;", '= "";', txt)
                       with open(path, "w", encoding="utf-8") as f:
                           f.write(txt)
+
+          pbxproj = os.path.join(root, "polyiphone.xcodeproj", "project.pbxproj")
+          if os.path.exists(pbxproj):
+              with open(pbxproj, "r", encoding="utf-8", errors="ignore") as f:
+                  content = f.read()
+              leftovers = sorted(set(re.findall(r"\$[a-zA-Z_][a-zA-Z0-9_]*", content)))
+              if leftovers:
+                  print("Remaining $ tokens in project.pbxproj:", leftovers)
 
           godot_proj = os.path.join(os.environ["GITHUB_WORKSPACE"], "Polytoria/project.godot")
           if os.path.exists(godot_proj):
@@ -161,8 +157,6 @@ jobs:
                   f.writelines(filtered)
           PY
 
-          # Validate Xcode project immediately so any parse error prints the exact line
-          plutil -lint "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj/project.pbxproj"
           xcodebuild -list -project "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
 
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --path Polytoria --import
@@ -171,7 +165,8 @@ jobs:
             echo "::error::Godot did not generate godot_apple_embedded.pck"
             exit 1
           }
-          - name: Build Unsigned IPA
+
+      - name: Build Unsigned IPA
         run: |
           cd "$GITHUB_WORKSPACE/build/ios"
           PROJ_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
@@ -287,6 +282,7 @@ jobs:
           xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -arch arm64 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO OTHER_LDFLAGS="\$(inherited) $PWD/ios26_stubs.o -framework WebKit" CONFIGURATION_BUILD_DIR="$PWD/out" build
           APP_PATH=$(find out -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then echo "ERROR: .app not found"; exit 1; fi
+          cp -f "$PWD/godot_apple_embedded.pck" "$APP_PATH/" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$APP_PATH/Info.plist" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$APP_PATH/Info.plist"
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$APP_PATH/Info.plist"
@@ -297,7 +293,7 @@ jobs:
           cp -R "$APP_PATH" Payload/
           zip -qry polyiphone.ipa Payload
 
-          - name: Upload polyiphone.ipa
+      - name: Upload polyiphone.ipa
         uses: actions/upload-artifact@v4
         with:
           name: polyiphone-ipa
