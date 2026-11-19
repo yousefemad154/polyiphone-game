@@ -74,22 +74,84 @@ jobs:
           fi
 
       - name: Export iOS Project
+        shell: bash
         run: |
+          set -euo pipefail
+
           mkdir -p "$GITHUB_WORKSPACE/build/ios"
           TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable.mono"
-          [ ! -d "$TPL_DIR" ] && TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
+          if [ ! -d "$TPL_DIR" ]; then
+            TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
+          fi
+
+          rm -rf "$GITHUB_WORKSPACE/build/ios/tpl"
           unzip -q "$TPL_DIR/ios.zip" -d "$GITHUB_WORKSPACE/build/ios/tpl"
+
           TPL_PROJ=$(find "$GITHUB_WORKSPACE/build/ios/tpl" -maxdepth 2 -name "*.xcodeproj" | head -n 1)
-          if [ -z "$TPL_PROJ" ]; then echo "ERROR: No .xcodeproj in ios.zip"; exit 1; fi
+          if [ -z "$TPL_PROJ" ]; then
+            echo "::error::No .xcodeproj found in $TPL_DIR/ios.zip"
+            exit 1
+          fi
+
           TPL_ROOT=$(dirname "$TPL_PROJ")
           cp -R "$TPL_ROOT"/* "$GITHUB_WORKSPACE/build/ios/"
           rm -rf "$GITHUB_WORKSPACE/build/ios/tpl"
-          python3 -c 'import os, functools; root=os.path.join(os.environ["GITHUB_WORKSPACE"],"build/ios"); repl={"$name":"polyiphone","$binary":"godot_apple_embedded","$bundle_identifier":"com.yousef.polyiphone","$short_version":"1.0","$version":"1","$signature":"????","$team_id":"","$code_sign_identity_debug":"","$code_sign_identity_release":"","$provisioning_profile_uuid_debug":"","$provisioning_profile_uuid_release":"","$targeted_device_family":"1,2","$orientations":"<string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string>","$additional_plist_content":"","$godot_enabled_plugins":""}; files=[os.path.join(dp,fn) for dp,_,fns in os.walk(root) for fn in fns if fn.endswith((".pbxproj",".plist",".xcscheme",".xcworkspacedata"))]; [open(p,"w",encoding="utf-8").write(functools.reduce(lambda s,kv:s.replace(kv[0],kv[1]),repl.items(),txt)) for p in files for txt in [open(p,"r",encoding="utf-8",errors="ignore").read()]]'
-          grep -v "PolytoriaExportPlugin" Polytoria/project.godot | grep -v "DeeplinkPlugin" > Polytoria/project.godot.tmp && mv Polytoria/project.godot.tmp Polytoria/project.godot
+
+          # Normalize xcodeproj name to polyiphone.xcodeproj while keeping compatibility if needed
+          if [ -d "$GITHUB_WORKSPACE/build/ios/godot_apple_embedded.xcodeproj" ] && [ ! -d "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj" ]; then
+            mv "$GITHUB_WORKSPACE/build/ios/godot_apple_embedded.xcodeproj" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
+          fi
+
+          python3 - <<'PY'
+          import functools
+          import os
+
+          root = os.path.join(os.environ["GITHUB_WORKSPACE"], "build/ios")
+          repl = {
+              "$name": "polyiphone",
+              "$binary": "godot_apple_embedded",
+              "$bundle_identifier": "com.yousef.polyiphone",
+              "$short_version": "1.0",
+              "$version": "1",
+              "$signature": "????",
+              "$team_id": "",
+              "$code_sign_identity_debug": "",
+              "$code_sign_identity_release": "",
+              "$provisioning_profile_uuid_debug": "",
+              "$provisioning_profile_uuid_release": "",
+              "$targeted_device_family": "1,2",
+              "$orientations": "<string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string>",
+              "$additional_plist_content": "",
+              "$godot_enabled_plugins": "",
+          }
+
+          exts = (".pbxproj", ".plist", ".xcscheme", ".xcworkspacedata")
+          for dp, _, fns in os.walk(root):
+              for fn in fns:
+                  if fn.endswith(exts):
+                      path = os.path.join(dp, fn)
+                      with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                          txt = f.read()
+                      updated = functools.reduce(lambda s, kv: s.replace(kv[0], kv[1]), repl.items(), txt)
+                      with open(path, "w", encoding="utf-8") as f:
+                          f.write(updated)
+
+          # Safely strip PolytoriaExportPlugin and DeeplinkPlugin from project.godot
+          godot_proj = os.path.join(os.environ["GITHUB_WORKSPACE"], "Polytoria/project.godot")
+          if os.path.exists(godot_proj):
+              with open(godot_proj, "r", encoding="utf-8", errors="ignore") as f:
+                  lines = f.readlines()
+              filtered = [ln for ln in lines if "PolytoriaExportPlugin" not in ln and "DeeplinkPlugin" not in ln]
+              with open(godot_proj, "w", encoding="utf-8") as f:
+                  f.writelines(filtered)
+          PY
+
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --path Polytoria --import
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --verbose --path Polytoria --export-pack "iOS" "$GITHUB_WORKSPACE/build/ios/godot_apple_embedded.pck"
-          test -f "$GITHUB_WORKSPACE/build/ios/godot_apple_embedded.pck" || { echo "ERROR: Godot did not generate godot_apple_embedded.pck"; exit 1; }
-
+          test -f "$GITHUB_WORKSPACE/build/ios/godot_apple_embedded.pck" || {
+            echo "::error::Godot did not generate godot_apple_embedded.pck"
+            exit 1
+          }
       - name: Build Unsigned IPA
         run: |
           cd "$GITHUB_WORKSPACE/build/ios"
