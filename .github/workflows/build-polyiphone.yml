@@ -192,10 +192,11 @@ jobs:
           
       - name: Build Unsigned IPA
         run: |
+          set -euo pipefail
           cd "$GITHUB_WORKSPACE/build/ios"
           PROJ_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
           if [ -z "$PROJ_FILE" ]; then echo "ERROR: No .xcodeproj"; exit 1; fi
-          SCHEME=$(xcodebuild -list -project "$PROJ_FILE" | awk '/Schemes:/{getline; gsub(/^[ \t]+|[ \t]+$/, ""); print; exit}')
+
           cat << 'EOF' > ios26_stubs.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -302,8 +303,23 @@ jobs:
           }
           #endif
           EOF
+
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc -c ios26_stubs.m -o ios26_stubs.o
-          xcodebuild -project "$PROJ_FILE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -arch arm64 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO OTHER_LDFLAGS="\$(inherited) $PWD/ios26_stubs.o -framework WebKit" CONFIGURATION_BUILD_DIR="$PWD/out" build
+          test -f ios26_stubs.o
+
+          xcodebuild \
+            -project "$PROJ_FILE" \
+            -target "godot_apple_embedded" \
+            -configuration Release \
+            -sdk iphoneos \
+            -arch arm64 \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            OTHER_LDFLAGS="\$(inherited) $PWD/ios26_stubs.o -framework WebKit" \
+            CONFIGURATION_BUILD_DIR="$PWD/out" \
+            build
+
           APP_PATH=$(find out -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then echo "ERROR: .app not found"; exit 1; fi
           cp -f "$PWD/godot_apple_embedded.pck" "$APP_PATH/" 2>/dev/null || true
@@ -316,6 +332,7 @@ jobs:
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           zip -qry polyiphone.ipa Payload
+          test -f polyiphone.ipa
 
       - name: Upload polyiphone.ipa
         uses: actions/upload-artifact@v4
