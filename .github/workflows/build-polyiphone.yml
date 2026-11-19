@@ -170,23 +170,10 @@ jobs:
           pbxproj = os.path.join(root, "polyiphone.xcodeproj", "project.pbxproj")
           if os.path.exists(pbxproj):
               with open(pbxproj, "r", encoding="utf-8", errors="ignore") as f:
-                  content = f.read()
-              leftovers = sorted(set(re.findall(r"\$[a-zA-Z_][a-zA-Z0-9_]*", content)))
-              print("Remaining $ tokens in project.pbxproj:", leftovers)
-
-              lines = content.splitlines()
-              print(f"Total lines in project.pbxproj: {len(lines)}")
-              print("First 10 lines:")
-              for idx, ln in enumerate(lines[:10], 1):
-                  print(f"  {idx}: {ln}")
-
+                  lines = f.read().splitlines()
+              print(f"=== project.pbxproj ({len(lines)} lines) ===")
               for idx, ln in enumerate(lines, 1):
-                  s = ln.strip()
-                  if re.search(r"=\s*;", s) or (s.endswith(",") and not s.endswith(");")):
-                      print(f"Suspicious line {idx}: {ln}")
-                  unescaped_quotes = len(re.findall(r'(?<!\\)"', ln))
-                  if unescaped_quotes % 2 != 0:
-                      print(f"Unmatched quote on line {idx}: {ln}")
+                  print(f"{idx:03d}: {ln}")
 
           godot_proj = os.path.join(os.environ["GITHUB_WORKSPACE"], "Polytoria/project.godot")
           if os.path.exists(godot_proj):
@@ -205,6 +192,7 @@ jobs:
             echo "::error::Godot did not generate godot_apple_embedded.pck"
             exit 1
           }
+          
       - name: Build Unsigned IPA
         run: |
           cd "$GITHUB_WORKSPACE/build/ios"
