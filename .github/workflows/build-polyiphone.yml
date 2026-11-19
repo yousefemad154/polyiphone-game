@@ -97,14 +97,13 @@ jobs:
           cp -R "$TPL_ROOT"/* "$GITHUB_WORKSPACE/build/ios/"
           rm -rf "$GITHUB_WORKSPACE/build/ios/tpl"
 
-          # Normalize xcodeproj name to polyiphone.xcodeproj while keeping compatibility if needed
           if [ -d "$GITHUB_WORKSPACE/build/ios/godot_apple_embedded.xcodeproj" ] && [ ! -d "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj" ]; then
             mv "$GITHUB_WORKSPACE/build/ios/godot_apple_embedded.xcodeproj" "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
           fi
 
           python3 - <<'PY'
-          import functools
           import os
+          import re
 
           root = os.path.join(os.environ["GITHUB_WORKSPACE"], "build/ios")
           repl = {
@@ -123,20 +122,36 @@ jobs:
               "$orientations": "<string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string>",
               "$additional_plist_content": "",
               "$godot_enabled_plugins": "",
+              "$pbx_embeded_frameworks": "",
+              "$pbx_embedded_frameworks": "",
+              "$pbx_frameworks_build_phase": "",
+              "$pbx_frameworks_build_files": "",
+              "$pbx_resources_build_phase": "",
+              "$pbx_sources_build_phase": "",
+              "$pbx_locale_build_files": "",
+              "$pbx_locale_file_reference": "",
+              "$pbx_launch_screen_file_reference": "",
+              "$pbx_launch_screen_build_file": "",
+              "$pbx_launch_screen_build_phase": "",
           }
+
+          # Replace longest keys first so shorter keys never corrupt longer ones
+          ordered_keys = sorted(repl.keys(), key=len, reverse=True)
 
           exts = (".pbxproj", ".plist", ".xcscheme", ".xcworkspacedata")
           for dp, _, fns in os.walk(root):
               for fn in fns:
                   if fn.endswith(exts):
                       path = os.path.join(dp, fn)
-                      with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                      with open(path, "r", encoding="utf-8", errors="strict") as f:
                           txt = f.read()
-                      updated = functools.reduce(lambda s, kv: s.replace(kv[0], kv[1]), repl.items(), txt)
+                      for k in ordered_keys:
+                          txt = txt.replace(k, repl[k])
+                      # Strip any leftover Godot $template_tokens that break Xcode's parser
+                      txt = re.sub(r"\$[a-zA-Z_][a-zA-Z0-9_]*", "", txt)
                       with open(path, "w", encoding="utf-8") as f:
-                          f.write(updated)
+                          f.write(txt)
 
-          # Safely strip PolytoriaExportPlugin and DeeplinkPlugin from project.godot
           godot_proj = os.path.join(os.environ["GITHUB_WORKSPACE"], "Polytoria/project.godot")
           if os.path.exists(godot_proj):
               with open(godot_proj, "r", encoding="utf-8", errors="ignore") as f:
@@ -145,6 +160,10 @@ jobs:
               with open(godot_proj, "w", encoding="utf-8") as f:
                   f.writelines(filtered)
           PY
+
+          # Validate Xcode project immediately so any parse error prints the exact line
+          plutil -lint "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj/project.pbxproj"
+          xcodebuild -list -project "$GITHUB_WORKSPACE/build/ios/polyiphone.xcodeproj"
 
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --path Polytoria --import
           ~/patched-godot/godot.macos.editor.x86_64.mono --headless --verbose --path Polytoria --export-pack "iOS" "$GITHUB_WORKSPACE/build/ios/godot_apple_embedded.pck"
