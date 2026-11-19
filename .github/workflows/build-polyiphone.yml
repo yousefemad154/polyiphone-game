@@ -297,7 +297,7 @@ jobs:
           cp -R "$APP_PATH" Payload/
           zip -qry polyiphone.ipa Payload
 
-      - name: Upload polyiphone.ipa
+          - name: Upload polyiphone.ipa
         uses: actions/upload-artifact@v4
         with:
           name: polyiphone-ipa
