@@ -234,12 +234,11 @@ jobs:
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/build/ios"
           PROJ_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
-          SCHEME=$(xcodebuild -list -json -project "$PROJ_FILE" | python3 -c 'import sys, json; d=json.load(sys.stdin).get("project", {}); s=d.get("schemes") or d.get("targets") or []; print(s[0] if s else "")')
 
           rm -rf derived Payload
           xcodebuild build \
             -project "$PROJ_FILE" \
-            -scheme "$SCHEME" \
+            -alltargets \
             -configuration Release \
             -sdk iphoneos \
             -arch arm64 \
