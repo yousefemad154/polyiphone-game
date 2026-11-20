@@ -229,6 +229,33 @@ jobs:
             exit 1
           fi
           
+      - name: Package Unsigned IPA
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/build/ios"
+          PROJ_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
+          SCHEME=$(xcodebuild -list -json -project "$PROJ_FILE" | python3 -c 'import sys, json; d=json.load(sys.stdin).get("project", {}); s=d.get("schemes") or d.get("targets") or []; print(s[0] if s else "")')
+
+          rm -rf derived Payload
+          xcodebuild build \
+            -project "$PROJ_FILE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -arch arm64 \
+            -derivedDataPath derived \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+          APP_PATH=$(find derived/Build/Products/Release-iphoneos -maxdepth 2 -name "*.app" | head -n 1)
+          [ -f godot_apple_embedded.pck ] && cp godot_apple_embedded.pck "$APP_PATH/"
+
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry "$GITHUB_WORKSPACE/build/ios/polyiphone.ipa" Payload
+          rm -rf Payload derived
+
       - name: Upload polyiphone.ipa
         if: always()
         uses: actions/upload-artifact@v4
