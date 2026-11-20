@@ -197,6 +197,26 @@ jobs:
           PROJ_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
           if [ -z "$PROJ_FILE" ]; then echo "ERROR: No .xcodeproj"; exit 1; fi
 
+          # Locate and stage godot_apple_embedded.xcframework if missing
+          if [ ! -e "$PWD/godot_apple_embedded.xcframework" ]; then
+            TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable.mono"
+            if [ ! -d "$TPL_DIR" ]; then
+              TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
+            fi
+            mkdir -p /tmp/ios_tpl_check
+            unzip -qo "$TPL_DIR/ios.zip" -d /tmp/ios_tpl_check 2>/dev/null || true
+            FOUND_XCFW=$(find /tmp/ios_tpl_check "$TPL_DIR" -maxdepth 4 -name "*.xcframework" | head -n 1 || true)
+            if [ -n "$FOUND_XCFW" ]; then
+              echo "Copying XCFramework from: $FOUND_XCFW"
+              cp -R "$FOUND_XCFW" "$PWD/godot_apple_embedded.xcframework"
+            else
+              echo "No .xcframework found. Checking template directory and archive contents:"
+              ls -la "$TPL_DIR" || true
+              find /tmp/ios_tpl_check -maxdepth 4 || true
+              exit 1
+            fi
+          fi
+
           cat << 'EOF' > ios26_stubs.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -333,7 +353,6 @@ jobs:
           cp -R "$APP_PATH" Payload/
           zip -qry polyiphone.ipa Payload
           test -f polyiphone.ipa
-
       - name: Upload polyiphone.ipa
         uses: actions/upload-artifact@v4
         with:
